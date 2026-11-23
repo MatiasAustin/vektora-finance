@@ -195,9 +195,12 @@ Matriks peran:
   dengan profil aktif — buat akun Auth + profilnya dulu (lihat README →
   Setup Supabase langkah 6). Bila user login tanpa profil, dia tidak bisa
   melihat data apa pun sampai admin membuatkan profilnya.
-- **Fee split recipients:** penerima di dalam Management Fee yang terkonfirmasi
-  hanya Komisaris 7% + 7%; sisanya 86% dicatat sebagai “Manajemen &
-  operasional (sisa, belum dirinci)” — perbaiki rinciannya saat sudah diputuskan.
+- **Fee split recipients (SELESAI 24 Nov 2026, ikut sheet "Struktur Pembagian"):**
+  placeholder lama “Manajemen & operasional (sisa, belum dirinci) 86%” SUDAH
+  DIHAPUS. Penerima Management Fee WhereIsIt sekarang 8 penerima: Direktur
+  Utama (Matias) 25%, Direktur Operasional (Januar) 20%, Komisaris Utama 7%,
+  Komisaris 2 7%, Keuangan 10.25%, Pemasaran 10.25%, Operasional 10.25%,
+  Administrasi 10.25% (total 100%). Dividen tetap Febri 70% / Matias 30%.
 - **Channel per income di seed:** channel tiap penjualan Nov 2026 tidak
   tercatat di sheet, jadi di-seed sebagai Direct TF. Perbaiki per baris bila
   datanya ada.
@@ -338,3 +341,132 @@ dipakai apa adanya (Mattin: `tiasaustin32@gmail.com`).
 4. Hal yang TIDAK bisa diverifikasi tanpa akses Supabase-nya: isi tabel di
    project live-nya (apakah seed-latest versi lama sudah terlanjur jalan,
    apakah ada duplikat, apakah env Vercel menunjuk project yang benar).
+
+## ADDENDUM — 24 Nov 2026 (02:10–02:14 WIB): slip management, dividen tahunan, bayar hutang, editor penerima fee
+
+### Hasil build — LULUS
+- `npm run typecheck` (`tsc --noEmit`) — lulus. `npm run build` — Compiled successfully, 14 halaman.
+- TIDAK di-push ke GitHub (sesuai tugas) — parent yang push.
+
+### 1. Slip gaji untuk management juga + OPEX yang benar
+- `generate()` di `/payslips` memang sudah mencakup semua tim aktif (tidak ada
+  filter `is_management`) — dipertahankan. Copy UI "karyawan aktif" diubah jadi
+  "tim aktif (karyawan + management)".
+- **BUG diperbaiki:** `opexFromPayslips()` dulu menghitung SEMUA slip yang
+  dibayar sebagai OPEX, termasuk slip management. Sekarang hanya slip karyawan
+  (`!is_management`); helper baru `managementFeeFromPayslips()` menghitung slip
+  management yang sudah dibayar. Query slip diperluas ke
+  `employees(..., is_management)`; kartu "Sudah dibayar (masuk OPEX)" menampilkan
+  total OPEX saja + baris "Dibayar dari Management Fee: RpX"; kartu "Total gaji
+  bersih" tetap total semua slip yang tampil.
+- **Dropdown Tim di form generate** (`/payslips`): pilih "Semua tim di brand ini"
+  atau satu orang dari tim aktif brand itu — tidak ada ketik nama manual. Pilih
+  satu orang = generate slip dia saja (bila gajinya 0, pesan menyebut namanya).
+  Ganti brand me-reset pilihan ke "Semua tim".
+
+### 2. Dividen Tahunan (cair 1x per tahun)
+- **File migrasi yang HARUS Mattin jalankan (satu-satunya file):**
+  `supabase/migration-dividend-payouts.sql` — jalankan SEKALI di Supabase SQL
+  Editor, di project yang sama dengan env Vercel. Aman di-run ulang (idempotent).
+  File ini JUGA berisi kolom bayar-hutang (§3) — jadi cukup satu file ini.
+- Tabel baru `dividend_payouts` (brand, tahun, nama penerima, % dividen, jumlah,
+  status belum/sudah dibayar, paid_at, unique brand+tahun+penerima) + RLS: baca
+  admin/management/komisaris/investor, tulis admin + management. Tabel yang sama
+  ditambahkan ke `supabase/schema.sql` (fresh setup ikut dapat).
+- **Penyimpangan RLS yang disengaja (dicatat di schema.sql):** pola fee_splits
+  tulisnya admin saja, tapi tombol "Buat pencairan dividen" dibuka untuk admin
+  DAN management (sesuai instruksi) — jadi tulis dividend_payouts mengizinkan
+  admin + management, kalau tidak insert dari management ditolak database.
+- UI: bagian "Dividen Tahunan" di `/fee-split` (di bawah kartu fee bulanan):
+  pilih tahun (2025–2027, default 2026) → laba tahunan per brand dihitung dari
+  transaksi tahun itu saja (query rentang tanggal, bukan load 500 baris) →
+  pool dividen + rincian per penerima → tombol "Buat pencairan dividen {tahun}"
+  (admin/management). **Jumlah per penerima DIBEKUKAN saat dibuat** (upsert
+  `ignoreDuplicates` — klik ulang tidak menimpa jumlah lama). Tiap baris
+  pencairan bisa "Tandai sudah dibayar / Batalkan" (paid_at tercatat).
+  Komisaris/investor lihat read-only.
+
+### 3. Bayar hutang (dropdown di Transaksi + hutang → aset)
+- **ATURAN ANTI DOUBLE COUNT (Mattin, 24 Nov 2026) — baca ini dulu:** aset yang
+  dibeli lewat hutang (mis. printer P2S) SUDAH tercatat sebagai aset. Cicilan
+  yang dibayar HANYA mengurangi hutang — cicilan itu BUKAN pengeluaran
+  operasional: **tidak masuk total pengeluaran, tidak mengurangi laba, tidak
+  menambah total nilai aset**. Cicilan = pergerakan neraca (kas berkurang,
+  hutang berkurang), bukan beban. Kalau dicatat sebagai expense biasa, total
+  pengeluaran membengkak, laba mengecil, fee-split ikut salah.
+- Implementasi: `summarize()` di `src/lib/types.ts` mengecualikan expense dengan
+  `liability_id` terisi dari `expense` & `net` (seperti Belum reimburse: dicatat
+  tapi tidak masuk hitungan). View `v_brand_monthly_summary` dan
+  `v_investor_summary` ditulis ulang dengan aturan yang sama — di `schema.sql`
+  DAN di file migrasi (`create or replace view`). Dashboard / fee-split /
+  ringkasan memakai `summarize()`, jadi laba tidak berubah saat ada pembayaran
+  cicilan.
+- Form tambah pengeluaran (`/transactions`): dropdown "Bayar hutang (opsional)"
+  berisi hutang aktif brand itu (kreditur + sisa). Bila dipilih: transaksi
+  tercatat kategori "Pelunasan Hutang", deskripsi "Bayar hutang: {kreditur}",
+  `liability_id` terisi; sisa hutang berkurang sebesar bayaran (floor 0); sisa
+  0 → status `lunas`. **Bayaran tidak boleh melebihi sisa hutang — ditolak
+  dengan pesan** (dipilih tolak, bukan dibatasi ke sisa). Daftar transaksi
+  menampilkan "Bayar hutang: {kreditur} — tidak masuk total pengeluaran".
+- Hutang → aset: kolom baru `liabilities.asset_id` (nullable) + dropdown
+  "Aset terkait" di form tambah hutang; `transactions.liability_id` (nullable)
+  melacak pembayaran ke hutangnya. Daftar hutang menampilkan "Sudah dibayar RpX
+  dari total RpY" dan, bila ada aset terkait, "Aset: {nama} — kepemilikan
+  perusahaan RpX dari RpY" (HANYA info kepemilikan, BUKAN tambahan angka aset);
+  saat lunas: "Lunas — aset sepenuhnya milik perusahaan". Total nilai aset TIDAK
+  berubah saat cicilan dibayar.
+- Kolom baru ada di `schema.sql` (fresh setup) dan di file migrasi (ALTER TABLE
+  ... ADD COLUMN IF NOT EXISTS). RLS mengikuti tabel yang bersangkutan (tidak
+  ada policy baru untuk kolom).
+- Catatan: hutang Febri yang SUDAH ADA (pinjaman P2S Rp5.380.000) tidak otomatis
+  terhubung ke aset P2S — tautan hanya bisa diisi saat hutang dibuat (belum ada
+  form edit hutang). Bila mau dihubungkan, jalankan sekali di SQL Editor:
+  `update public.liabilities set asset_id = (select id from public.assets where name = 'Bambulab P2S Combo') where creditor = 'Febri' and amount = 5380000;`
+
+### 4. Editor penerima fee + turunan Management Fee jelas
+- Kartu Management Fee tiap brand sekarang menampilkan rincian lengkap tiap
+  penerima: **nama, % dari fee pool, dan jumlah Rp** (dihitung dari laba periode
+  itu). Sama untuk Dividen (nama, % dari dividen, Rp). `computeFeeSplit()` kini
+  mengembalikan `pct` di tiap baris breakdown.
+- **Editor "Edit penerima fee" (admin saja, `canEditFeeSplit`)** di tiap kartu:
+  tambah baris penerima (nama + %), hapus baris, ubah %, pilih Tim dari dropdown
+  (anggota tim brand itu; boleh kosong bila penerima bukan tim). Total % tiap
+  daftar ditampilkan berjalan dan **simpan ditolak bila total ≠ 100%** (daftar
+  kosong dibolehkan = belum ada penerima). Simpan ke
+  `fee_splits.management_fee_recipients` / `dividend_recipients` (jsonb).
+  Editor yang sama dipakai untuk penerima Dividen.
+- **Penerima → slip gaji:** tiap baris penerima bisa dihubungkan ke employee
+  lewat dropdown "Tim"; tautan disimpan sebagai field opsional `employee_id` di
+  dalam objek recipient jsonb (struktur tabel TIDAK berubah). Bila terhubung,
+  tampil tautan "Lihat slip" ke `/payslips`. Slip orang itu tetap dibuat lewat
+  generate seperti biasa; gaji pokok mereka dibayar dari Management Fee, bukan
+  OPEX (lihat §1). Management/komisaris/investor hanya melihat (tidak bisa edit).
+
+### 5. Penerima fee IKUT SHEET (koreksi 24 Nov 2026 ~02:14 WIB)
+- Placeholder lama "Manajemen & operasional (sisa, belum dirinci) 86%" **DIHAPUS**
+  dari `seed.sql` dan dari semua teks app. Penerima Management Fee WhereIsIt
+  sekarang 8 penerima persis seperti tab "Struktur Pembagian" (total 100%):
+  Direktur Utama (Matias) 25%, Direktur Operasional (Januar) 20%, Komisaris
+  Utama 7%, Komisaris 2 7%, Keuangan 10.25%, Pemasaran 10.25%, Operasional
+  10.25%, Administrasi 10.25%. Dividen tetap Febri 70% / Matias 30%.
+  Cek angka Nov 2026: laba 417.118 → Dividen 83.424, Fee 229.415, Ditahan
+  104.279 — cocok dengan app.
+- Keuangan / Pemasaran / Operasional / Administrasi adalah POSISI — di seed
+  `employee_id: null`, orangnya diisi nanti lewat editor penerima (dropdown
+  Tim) tanpa mengubah %. **Tidak di-hardcode di seed** (Avrina/Januar/Matias
+  belum ada di tabel employees). Moonimo tetap penerima kosong.
+- Karena baris fee_splits lama sudah ada di database, `seed.sql` berisi UPDATE
+  khusus (hanya bila masih mengandung "belum dirinci") — insert NOT EXISTS saja
+  tidak akan mengubah baris lama. Jalankan ulang `seed.sql` versi baru supaya
+  perbaikannya masuk; contoh/teks "sisa 86%" di app juga sudah dihapus.
+
+### Yang TIDAK bisa diverifikasi tanpa akses Supabase Mattin
+1. Migrasi `migration-dividend-payouts.sql` belum dijalankan di project live —
+   sampai dijalankan, tabel `dividend_payouts` + kolom `asset_id` /
+   `liability_id` belum ada dan fitur baru akan error saat dipakai. Mattin harus
+   menjalankan file itu (satu file saja) di SQL Editor.
+2. Perilaku RLS live (apakah management bisa insert payout, apakah komisaris
+   bisa baca) — policy mengikuti pola fee_splits, tapi belum diuji terhadap
+   database live.
+3. Total tahunan terhadap data asli (apakah transaksi 2025/2026 lengkap) dan
+   tampilan nyata di browser — tidak ada akses browser/live di sini.

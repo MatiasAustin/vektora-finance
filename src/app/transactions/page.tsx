@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { summarize } from "@/lib/types";
-import type { Brand, Channel, TransactionRow } from "@/lib/types";
+import type { Brand, Channel, LiabilityRow, TransactionRow } from "@/lib/types";
 import { formatDateID, formatIDR } from "@/lib/format";
 import { AccessDenied, BrandSelect, Card, EmptySupabase, ReadOnlyNotice } from "@/components/ui";
 import { canEdit, useAuth } from "@/lib/auth";
@@ -15,6 +15,7 @@ export default function TransactionsPage() {
   const editable = canEdit(role);
   const { brands, channels } = useBrandsChannels();
   const [rows, setRows] = useState<TransactionRow[]>([]);
+  const [liabilities, setLiabilities] = useState<LiabilityRow[]>([]);
   const [brandId, setBrandId] = useState("all");
   const [status, setStatus] = useState("all");
   const [kind, setKind] = useState("all");
@@ -34,6 +35,7 @@ export default function TransactionsPage() {
     ref: "",
     notes: "",
     payment_status: "sudah_dibayar" as "sudah_dibayar" | "belum_reimburse",
+    liability_id: "",
   });
 
   async function load() {
@@ -42,12 +44,12 @@ export default function TransactionsPage() {
       setLoading(false);
       return;
     }
-    const { data } = await sb
-      .from("transactions")
-      .select("*, brands(name), channels(name)")
-      .order("txn_date", { ascending: false })
-      .limit(500);
-    if (data) setRows(data as TransactionRow[]);
+    const [t, l] = await Promise.all([
+      sb.from("transactions").select("*, brands(name), channels(name), liabilities(creditor)").order("txn_date", { ascending: false }).limit(500),
+      sb.from("liabilities").select("*").eq("status", "aktif").gt("remaining_amount", 0).order("creditor"),
+    ]);
+    if (t.data) setRows(t.data as TransactionRow[]);
+    if (l.data) setLiabilities(l.data as LiabilityRow[]);
     setLoading(false);
   }
   useEffect(() => {
@@ -70,23 +72,67 @@ export default function TransactionsPage() {
   );
   const sum = useMemo(() => summarize(filtered), [filtered]);
 
+  // Bayar hutang (24 Nov 2026): pengeluaran KHUSUS pelunasan hutang.
+  // - Transaksi tetap tercatat, kategori "Pelunasan Hutang", terhubung ke
+  //   hutang via liability_id — tapi TIDAK masuk total pengeluaran/laba
+  //   (anti double count: asetnya sudah tercatat; cicilan hanya mengurangi
+  //   hutang). Lihat summarize() di src/lib/types.ts.
+  // - Sisa hutang berkurang sebesar jumlah bayar (floor 0); sisa 0 = lunas.
+  // - Jumlah bayar TIDAK BOLEH melebihi sisa hutang: ditolak dengan pesan.
   async function add(e: React.FormEvent) {
     e.preventDefault();
     if (!editable) return;
     const sb = getSupabase();
     if (!sb) return;
+    const amount = Number(form.amount);
+    const payingDebt = form.kind === "expense" && form.liability_id !== "";
+    let creditor = "";
+    let remaining = 0;
+    if (payingDebt) {
+      const { data: liab } = await sb.from("liabilities").select("*").eq("id", form.liability_id).single();
+      if (!liab) {
+        setMsg("Hutang yang dipilih tidak ditemukan — muat ulang halaman.");
+        return;
+      }
+      creditor = (liab as LiabilityRow).creditor;
+      remaining = Number((liab as LiabilityRow).remaining_amount);
+      if (amount > remaining) {
+        setMsg(`Jumlah bayar ${formatIDR(amount)} melebihi sisa hutang ${creditor} (${formatIDR(remaining)}). Kurangi jumlahnya atau bayar maksimal sisa hutang.`);
+        return;
+      }
+    }
     const { error } = await sb.from("transactions").insert({
       ...form,
-      amount: Number(form.amount),
+      amount,
       channel_id: form.channel_id || null,
       reimbursed_at: null,
+      category: payingDebt ? "Pelunasan Hutang" : form.category,
+      description: payingDebt
+        ? `Bayar hutang: ${creditor}${form.description ? ` — ${form.description}` : ""}`
+        : form.description,
+      liability_id: payingDebt ? form.liability_id : null,
     });
-    if (error) setMsg("Gagal simpan: " + error.message);
-    else {
-      setMsg("Tersimpan.");
-      setForm((f) => ({ ...f, description: "", amount: "", ref: "", notes: "" }));
-      load();
+    if (error) {
+      setMsg("Gagal simpan: " + error.message);
+      return;
     }
+    if (payingDebt) {
+      const nextRemaining = Math.max(0, remaining - amount);
+      const { error: lerr } = await sb.from("liabilities").update({
+        remaining_amount: nextRemaining,
+        status: nextRemaining === 0 ? "lunas" : "aktif",
+      }).eq("id", form.liability_id);
+      if (lerr) {
+        setMsg(`Transaksi tersimpan, tapi sisa hutang gagal diperbarui: ${lerr.message}. Perbaiki manual di halaman Hutang.`);
+        load();
+        return;
+      }
+      setMsg(`Tersimpan. Sisa hutang ${creditor} sekarang ${formatIDR(nextRemaining)}${nextRemaining === 0 ? " — LUNAS." : "."}`);
+    } else {
+      setMsg("Tersimpan.");
+    }
+    setForm((f) => ({ ...f, description: "", amount: "", ref: "", notes: "", liability_id: "" }));
+    load();
   }
 
   async function flip(t: TransactionRow) {
@@ -151,10 +197,18 @@ export default function TransactionsPage() {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-          <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as "income" | "expense" })} className="rounded-xl border px-3 py-2">
+          <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as "income" | "expense", liability_id: "" })} className="rounded-xl border px-3 py-2">
             <option value="income">Income</option>
             <option value="expense">Pengeluaran</option>
           </select>
+          {form.kind === "expense" && (
+            <select value={form.liability_id} onChange={(e) => setForm({ ...form, liability_id: e.target.value })} className="rounded-xl border px-3 py-2">
+              <option value="">Bayar hutang (opsional) — pilih hutang…</option>
+              {liabilities.filter((l) => !form.brand_id || !l.brand_id || l.brand_id === form.brand_id).map((l) => (
+                <option key={l.id} value={l.id}>{l.creditor} — sisa {formatIDR(l.remaining_amount)}</option>
+              ))}
+            </select>
+          )}
           <input type="date" value={form.txn_date} onChange={(e) => setForm({ ...form, txn_date: e.target.value })} className="rounded-xl border px-3 py-2" required />
           <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Keterangan" className="rounded-xl border px-3 py-2" required />
           <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Kategori (mis. Operasional, Bahan Baku)" className="rounded-xl border px-3 py-2" />
@@ -172,6 +226,10 @@ export default function TransactionsPage() {
         <p className="mt-2 text-xs text-slate-500">
           Belum reimburse: tercatat tapi tidak masuk total pengeluaran/saldo. Klik &quot;Reimburse&quot; di
           daftar saat sudah dibayar — total akan ikut berubah otomatis.
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Pembayaran hutang tidak masuk total pengeluaran &amp; laba (bukan biaya operasional) — hanya
+          mengurangi sisa hutang. Jumlah bayar tidak boleh melebihi sisa hutang.
         </p>
       </Card>
 
@@ -203,6 +261,7 @@ export default function TransactionsPage() {
                   {formatDateID(t.txn_date)} · {t.brands?.name} · {t.channels?.name ?? "—"} · {t.category ?? "—"} ·{" "}
                   {t.payment_method ?? "—"}
                   {t.ref ? ` · ${t.ref}` : ""}
+                  {t.liability_id ? ` · Bayar hutang: ${t.liabilities?.creditor ?? ""} — tidak masuk total pengeluaran` : ""}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">

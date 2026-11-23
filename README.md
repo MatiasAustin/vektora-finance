@@ -117,16 +117,20 @@ lihat petunjuk di halaman `/team`.
 ## Slip gaji (`/payslips`)
 
 1. Admin/management buat periode (YYYY-MM) per brand → **Generate slip** dari
-   karyawan aktif (gaji pokok = gaji bulanan di `/employees`; tunjangan/potongan
-   default 0, bisa diedit per slip; karyawan bergaji 0 dilewati).
+   tim aktif — **karyawan + management** (24 Nov 2026, bukan cuma karyawan).
+   Pilih orangnya dari dropdown **Tim** (atau "Semua tim di brand ini") — tidak
+   ada ketik nama manual. Gaji pokok = gaji bulanan di `/employees`;
+   tunjangan/potongan default 0, bisa diedit per slip; tim bergaji 0 dilewati.
 2. Detail slip: header PT Vektora, brand, nama/peran karyawan, periode, rincian
    penghasilan, potongan, gaji bersih, area tanda tangan.
 3. **Cetak** (tombol Cetak, print CSS A4-ish, hanya slip yang tercetak) atau
    **kirim**: tandai terkirim dengan metode WhatsApp / Email / Langsung
    (`sent_at` tercatat) + tautan WhatsApp (`wa.me`) / salin tautan untuk dibagikan
    manual. **App tidak mengirim pesan otomatis.**
-4. **Tandai sudah dibayar** → slip masuk OPEX bulan itu; yang belum dibayar
-   tampil sebagai tunggakan. Karyawan hanya melihat slip miliknya sendiri.
+4. **Tandai sudah dibayar** → slip **karyawan** masuk OPEX bulan itu; slip
+   **management** yang sudah dibayar keluar dari Management Fee, bukan OPEX.
+   Yang belum dibayar tampil sebagai tunggakan. Karyawan hanya melihat slip
+   miliknya sendiri.
 
 ## Modal & pajak
 
@@ -148,12 +152,24 @@ Rp0 (sweat equity). `taxes`: PPN/PPh per periode (seed: PPN Nov 2026 Rp0,
 
 ### 2. Pembagian Fee (per brand, bisa diubah)
 - Hanya bila **laba bersih > 0**; kalau negatif, semua pembagian = Rp0.
-- Default WhereIsIt: **Dividen 20%** (Febri 70% / Matias 30%), **Management Fee 55%**
-  (termasuk Komisaris 14% dari fee pool: Komisaris Utama 7% + Komisaris 2 7%),
-  **Ditahan 25%**.
-- Contoh Nov 2026: laba Rp159.395 → Dividen Rp31.879 (Febri Rp22.315 / Matias Rp9.564),
-  Management Fee Rp87.667, Ditahan Rp39.849.
-- Ubah persentase di halaman `/fee-split` (validasi total = 100).
+- Default WhereIsIt: **Dividen 20%** (Febri 70% / Matias 30%), **Management Fee 55%**,
+  **Ditahan 25%**. Penerima Management Fee ikut sheet "Struktur Pembagian":
+  Direktur Utama (Matias) 25%, Direktur Operasional (Januar) 20%, Komisaris Utama 7%,
+  Komisaris 2 7%, Keuangan 10.25%, Pemasaran 10.25%, Operasional 10.25%,
+  Administrasi 10.25% (total 100% fee pool). Keuangan/Pemasaran/Operasional/
+  Administrasi adalah posisi — orangnya dihubungkan lewat dropdown Tim di editor
+  penerima, tanpa mengubah %.
+- Contoh Nov 2026: laba Rp417.118 → Dividen Rp83.424 (Febri 70% Rp58.397 /
+  Matias 30% Rp25.027), Management Fee Rp229.415, Ditahan Rp104.279.
+- Ubah persentase di halaman `/fee-split` (validasi total = 100). Daftar penerima
+  dividen & Management Fee bisa ditambah/dihapus/diubah % di editor "Edit penerima
+  fee" (admin saja; total % tiap daftar harus 100%). Penerima yang merupakan tim
+  bisa dihubungkan ke employee (dropdown Tim) — muncul tautan "Lihat slip" ke
+  `/payslips`.
+- **Dividen Tahunan:** dividen dicairkan 1x per tahun (bagian "Dividen Tahunan" di
+  `/fee-split`): pilih tahun → laba tahunan per brand → tombol "Buat pencairan
+  dividen {tahun}" (admin/management). Jumlah per penerima **dibekukan saat
+  dibuat**; status dibayar ditandai manual per penerima.
 
 ### 3. OPEX & gaji (fixed cost)
 - **OPEX = pengeluaran operasional yang tercatat + gaji tetap staf operasional.**
@@ -170,6 +186,19 @@ Rp0 (sweat equity). `taxes`: PPN/PPh per periode (seed: PPN Nov 2026 Rp0,
   sebagai aset investasi, tapi tidak masuk total hutang perusahaan.
 - Contoh hutang perusahaan: pinjaman Febri Rp5.380.000 untuk Bambulab P2S,
   jatuh tempo 2027-11-16, amortisasi 12 bulan, Rp448.333/bulan.
+- **Bayar hutang (24 Nov 2026):** di form tambah pengeluaran ada dropdown
+  "Bayar hutang (opsional)" (hutang aktif + sisa). Kalau dipilih, transaksi
+  tercatat dengan kategori "Pelunasan Hutang" dan `liability_id` — tapi
+  **cicilan BUKAN beban operasional: tidak masuk total pengeluaran & laba**
+  (anti double count: asetnya sudah tercatat sebagai aset). Sisa hutang
+  berkurang sebesar bayaran (floor 0); sisa 0 → status `lunas`. Bayaran tidak
+  boleh melebihi sisa hutang (ditolak dengan pesan). Cicilan = pergerakan
+  neraca (kas berkurang, hutang berkurang), bukan beban.
+- **Hutang → aset:** tiap hutang bisa dihubungkan ke satu aset ("Aset terkait"
+  di form tambah hutang, `liabilities.asset_id`). Di daftar hutang tampil
+  "Sudah dibayar RpX dari RpY" dan progres kepemilikan ("milik perusahaan RpX
+  dari RpY"); saat lunas: "Lunas — aset sepenuhnya milik perusahaan". Total
+  nilai aset TIDAK berubah saat cicilan dibayar.
 
 ### 5. Investasi / aset
 Aset (P2S Rp10.000.555, PETG Rp892.528, A1 Rp5.267.960 — total Rp16.161.043)

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { canEdit, canViewPayslips, useAuth } from "@/lib/auth";
-import { opexFromPayslips, payslipTotals } from "@/lib/types";
+import { managementFeeFromPayslips, opexFromPayslips, payslipTotals } from "@/lib/types";
 import type { Brand, EmployeeRow, PayrollPeriod, Payslip, PayslipLine } from "@/lib/types";
 import { formatDateID, formatIDR } from "@/lib/format";
 import { AccessDenied, BrandSelect, Card, EmptySupabase, ReadOnlyNotice } from "@/components/ui";
@@ -11,11 +11,14 @@ import { useBrandsChannels } from "@/lib/useData";
 
 /**
  * /payslips — Slip gaji PT Vektora.
- * - Admin/management: buat periode, generate slip dari karyawan aktif,
+ * - Admin/management: buat periode, generate slip dari tim aktif
+ *   (karyawan + management — 24 Nov 2026, bukan cuma karyawan),
  *   edit tunjangan/potongan, tandai terkirim (WhatsApp/Email/Langsung),
  *   tandai dibayar, cetak slip.
  * - Karyawan: hanya slip milik sendiri (difilter employee_id profilnya).
- * - Slip yang Sudah dibayar masuk OPEX bulan itu; yang belum = tunggakan.
+ * - Slip karyawan yang Sudah dibayar masuk OPEX bulan itu; slip
+ *   MANAGEMENT yang sudah dibayar keluar dari Management Fee, bukan
+ *   OPEX (opexFromPayslips / managementFeeFromPayslips).
  * - TIDAK ada pengiriman otomatis: "Kirim" hanya mencatat sent_at + sent_via
  *   dan memberi tautan WhatsApp (wa.me) untuk dibagikan manual.
  */
@@ -30,7 +33,7 @@ export default function PayslipsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
-  const [gen, setGen] = useState({ brand_id: "", period: new Date().toISOString().slice(0, 7) });
+  const [gen, setGen] = useState({ brand_id: "", period: new Date().toISOString().slice(0, 7), employee_id: "all" });
   const [sendVia, setSendVia] = useState<"whatsapp" | "email" | "langsung">("whatsapp");
   const [line, setLine] = useState({ kind: "allowance" as "allowance" | "deduction", label: "", amount: "" });
 
@@ -39,7 +42,7 @@ export default function PayslipsPage() {
     if (!sb) return setLoading(false);
     const [p, s, e] = await Promise.all([
       sb.from("payroll_periods").select("*, brands(name)").order("period", { ascending: false }),
-      sb.from("payslips").select("*, employees(name, role, team, brand_id), payroll_periods(period, brand_id)").order("created_at", { ascending: false }),
+      sb.from("payslips").select("*, employees(name, role, team, brand_id, is_management), payroll_periods(period, brand_id)").order("created_at", { ascending: false }),
       sb.from("employees").select("*, brands(name)").eq("is_active", true).order("name"),
     ]);
     if (p.data) setPeriods(p.data as PayrollPeriod[]);
@@ -83,11 +86,20 @@ export default function PayslipsPage() {
       setMsg("Gagal buat periode: " + (perr?.message ?? "unknown"));
       return;
     }
-    const target = employees.filter((x) => x.brand_id === gen.brand_id);
+    // Dropdown "Tim": "all" = semua tim aktif di brand; satu orang = hanya dia.
+    // Tidak ada ketik nama manual — pilih dari daftar tim yang terdaftar.
+    const target =
+      gen.employee_id === "all"
+        ? employees.filter((x) => x.brand_id === gen.brand_id)
+        : employees.filter((x) => x.id === gen.employee_id);
     const withSalary = target.filter((x) => x.monthly_salary > 0);
     const skipped = target.filter((x) => x.monthly_salary <= 0);
     if (withSalary.length === 0) {
-      setMsg("Tidak ada karyawan aktif dengan gaji terisi di brand ini. Isi gaji dulu di /employees.");
+      setMsg(
+        gen.employee_id === "all"
+          ? "Tidak ada tim aktif dengan gaji terisi di brand ini. Isi gaji dulu di /employees."
+          : `Gaji ${target[0]?.name ?? "orang ini"} masih 0 / belum diisi. Isi gaji dulu di /employees.`
+      );
       return;
     }
     const rows = withSalary.map((x) => ({
@@ -105,7 +117,7 @@ export default function PayslipsPage() {
     if (error) setMsg("Gagal generate slip: " + error.message);
     else {
       setMsg(
-        `Slip dibuat untuk ${withSalary.length} karyawan periode ${gen.period}.` +
+        `Slip dibuat untuk ${withSalary.length} orang periode ${gen.period}.` +
           (skipped.length ? ` Dilewati (gaji 0 / belum diisi): ${skipped.map((x) => x.name).join(", ")}.` : "")
       );
       setPeriodId((period as PayrollPeriod).id);
@@ -166,19 +178,27 @@ export default function PayslipsPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card><p className="text-xs font-semibold uppercase text-slate-500">Total gaji bersih</p><p className="mt-1 text-2xl font-bold">{formatIDR(totals.totalNet)}</p></Card>
-        <Card><p className="text-xs font-semibold uppercase text-slate-500">Sudah dibayar (masuk OPEX)</p><p className="mt-1 text-2xl font-bold">{formatIDR(totals.paid)}</p></Card>
+        <Card><p className="text-xs font-semibold uppercase text-slate-500">Total gaji bersih</p><p className="mt-1 text-2xl font-bold">{formatIDR(totals.totalNet)}</p><p className="mt-1 text-xs text-slate-500">Semua slip yang tampil (karyawan + management).</p></Card>
+        <Card><p className="text-xs font-semibold uppercase text-slate-500">Sudah dibayar (masuk OPEX)</p><p className="mt-1 text-2xl font-bold">{formatIDR(opexFromPayslips(visibleSlips))}</p><p className="mt-1 text-xs text-slate-500">Hanya slip karyawan. Dibayar dari Management Fee: {formatIDR(managementFeeFromPayslips(visibleSlips))}.</p></Card>
         <Card><p className="text-xs font-semibold uppercase text-slate-500">Belum dibayar (tunggakan)</p><p className="mt-1 text-2xl font-bold">{formatIDR(totals.outstanding)}</p></Card>
       </div>
-      <p className="text-xs text-slate-500">OPEX dari slip yang sudah dibayar: {formatIDR(opexFromPayslips(visibleSlips))} — sama dengan angka “Sudah dibayar” di atas.</p>
+      <p className="text-xs text-slate-500">Total sudah dibayar: {formatIDR(totals.paid)} = OPEX {formatIDR(opexFromPayslips(visibleSlips))} + Management Fee {formatIDR(managementFeeFromPayslips(visibleSlips))}. Slip management tidak masuk OPEX.</p>
 
       {editable && (
         <Card>
           <h3 className="font-bold">Buat periode &amp; generate slip</h3>
           <form onSubmit={generate} className="mt-3 flex flex-wrap items-end gap-3">
             <label className="text-sm">Brand
-              <select value={gen.brand_id} onChange={(e) => setGen({ ...gen, brand_id: e.target.value })} className="ml-2 rounded-xl border px-2 py-1">
+              <select value={gen.brand_id} onChange={(e) => setGen({ ...gen, brand_id: e.target.value, employee_id: "all" })} className="ml-2 rounded-xl border px-2 py-1">
                 {brands.map((b: Brand) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </label>
+            <label className="text-sm">Tim
+              <select value={gen.employee_id} onChange={(e) => setGen({ ...gen, employee_id: e.target.value })} className="ml-2 rounded-xl border px-2 py-1">
+                <option value="all">Semua tim di brand ini</option>
+                {employees.filter((x) => x.brand_id === gen.brand_id).map((x) => (
+                  <option key={x.id} value={x.id}>{x.name}{x.role ? ` — ${x.role}` : ""}</option>
+                ))}
               </select>
             </label>
             <label className="text-sm">Periode
@@ -186,7 +206,7 @@ export default function PayslipsPage() {
             </label>
             <button className="rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">Generate slip</button>
           </form>
-          <p className="mt-2 text-xs text-slate-500">Generate dari karyawan aktif brand itu, gaji pokok = gaji bulanan di /employees. Tunjangan/potongan default 0 — edit per slip. Karyawan dengan gaji 0 dilewati.</p>
+          <p className="mt-2 text-xs text-slate-500">Generate dari tim aktif brand itu (karyawan + management), gaji pokok = gaji bulanan di /employees. Pilih satu orang di dropdown "Tim" untuk generate slip dia saja — tidak perlu ketik nama. Tunjangan/potongan default 0 — edit per slip. Tim dengan gaji 0 dilewati.</p>
           {msg && <p className="mt-2 text-sm">{msg}</p>}
         </Card>
       )}

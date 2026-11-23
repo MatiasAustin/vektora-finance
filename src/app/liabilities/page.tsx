@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
-import type { Brand, LiabilityRow } from "@/lib/types";
+import type { AssetRow, Brand, LiabilityRow } from "@/lib/types";
 import { formatDateID, formatIDR } from "@/lib/format";
 import { BrandSelect, Card, EmptySupabase, ReadOnlyNotice } from "@/components/ui";
 import { canEdit, useAuth } from "@/lib/auth";
@@ -14,15 +14,20 @@ export default function LiabilitiesPage() {
   const editable = canEdit(role);
   const { brands } = useBrandsChannels();
   const [rows, setRows] = useState<LiabilityRow[]>([]);
+  const [assets, setAssets] = useState<AssetRow[]>([]);
   const [brandId, setBrandId] = useState("all");
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ brand_id: "", creditor: "", amount: "", due_date: "", monthly_installment: "", months: "12", paid_by: "company" as "company" | "investor", notes: "" });
+  const [form, setForm] = useState({ brand_id: "", creditor: "", amount: "", due_date: "", monthly_installment: "", months: "12", paid_by: "company" as "company" | "investor", notes: "", asset_id: "" });
 
   async function load() {
     const sb = getSupabase();
     if (!sb) return setLoading(false);
-    const { data } = await sb.from("liabilities").select("*, brands(name)").order("due_date", { ascending: true });
-    if (data) setRows(data as LiabilityRow[]);
+    const [l, a] = await Promise.all([
+      sb.from("liabilities").select("*, brands(name), assets(name)").order("due_date", { ascending: true }),
+      sb.from("assets").select("*").order("name"),
+    ]);
+    if (l.data) setRows(l.data as LiabilityRow[]);
+    if (a.data) setAssets(a.data as AssetRow[]);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -42,8 +47,9 @@ export default function LiabilitiesPage() {
       brand_id: form.brand_id || null, creditor: form.creditor, amount, remaining_amount: amount,
       due_date: form.due_date || null, monthly_installment: form.monthly_installment ? Number(form.monthly_installment) : null,
       months: form.months ? Number(form.months) : null, paid_by: form.paid_by, status: "aktif", notes: form.notes || null,
+      asset_id: form.asset_id || null,
     });
-    setForm((f) => ({ ...f, creditor: "", amount: "", notes: "" }));
+    setForm((f) => ({ ...f, creditor: "", amount: "", notes: "", asset_id: "" }));
     load();
   }
 
@@ -69,21 +75,38 @@ export default function LiabilitiesPage() {
             <option value="company">Dibayar perusahaan</option>
             <option value="investor">Dibayar investor (bukan hutang perusahaan)</option>
           </select>
+          <select value={form.asset_id} onChange={(e) => setForm({ ...form, asset_id: e.target.value })} className="rounded-xl border px-3 py-2">
+            <option value="">Aset terkait (opsional) — pilih aset…</option>
+            {assets.filter((a) => !form.brand_id || a.brand_id === form.brand_id).map((a) => (
+              <option key={a.id} value={a.id}>{a.name} — {formatIDR(a.total_price)}</option>
+            ))}
+          </select>
           <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Catatan" className="rounded-xl border px-3 py-2 md:col-span-2" />
           <button className="rounded-xl bg-vektora-500 px-4 py-2 font-semibold text-white">Simpan</button>
         </form>) : (<ReadOnlyNotice role={role} />)}
       </Card>
       <Card>
         <ul className="divide-y">
-          {filtered.map((l) => (
-            <li key={l.id} className="py-3 text-sm">
-              <div className="flex justify-between gap-2"><p className="font-medium">{l.creditor} — {l.brands?.name ?? "PT Vektora"}</p><b>{formatIDR(l.remaining_amount)}</b></div>
-              <p className="text-xs text-slate-500">
-                Total {formatIDR(l.amount)} · Jatuh tempo {formatDateID(l.due_date)} · Cicilan {l.monthly_installment ? formatIDR(l.monthly_installment) + "/bln" : "—"} · {l.months ?? "—"} bulan · {l.paid_by === "investor" ? "Dibayar investor" : "Dibayar perusahaan"} · {l.status}
-                {l.notes ? ` · ${l.notes}` : ""}
-              </p>
-            </li>
-          ))}
+          {filtered.map((l) => {
+            const paid = l.amount - l.remaining_amount;
+            const isLunas = l.status === "lunas" || l.remaining_amount <= 0;
+            return (
+              <li key={l.id} className="py-3 text-sm">
+                <div className="flex justify-between gap-2"><p className="font-medium">{l.creditor} — {l.brands?.name ?? "PT Vektora"}</p><b>{formatIDR(l.remaining_amount)}</b></div>
+                <p className="text-xs text-slate-500">
+                  Total {formatIDR(l.amount)} · Sudah dibayar {formatIDR(paid)} dari {formatIDR(l.amount)} · Jatuh tempo {formatDateID(l.due_date)} · Cicilan {l.monthly_installment ? formatIDR(l.monthly_installment) + "/bln" : "—"} · {l.months ?? "—"} bulan · {l.paid_by === "investor" ? "Dibayar investor" : "Dibayar perusahaan"} · {isLunas ? "Lunas" : l.status}
+                  {l.notes ? ` · ${l.notes}` : ""}
+                </p>
+                {l.asset_id && l.assets?.name && (
+                  <p className="mt-1 text-xs text-slate-600">
+                    {isLunas
+                      ? `Aset: ${l.assets.name} — Lunas, aset sepenuhnya milik perusahaan.`
+                      : `Aset: ${l.assets.name} — kepemilikan perusahaan ${formatIDR(paid)} dari ${formatIDR(l.amount)} (bukan tambahan nilai aset).`}
+                  </p>
+                )}
+              </li>
+            );
+          })}
           {filtered.length === 0 && <li className="py-4 text-sm text-slate-500">Belum ada hutang.</li>}
         </ul>
       </Card>

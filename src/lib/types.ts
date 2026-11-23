@@ -33,8 +33,12 @@ export interface TransactionRow {
   payment_status: PaymentStatus;
   reimbursed_at: string | null;
   created_at?: string;
+  // Bayar hutang (24 Nov 2026): pembayaran cicilan/pelunasan yang tercatat
+  // sebagai transaksi expense terhubung ke liabilities.id.
+  liability_id?: string | null;
   brands?: { name: string } | null;
   channels?: { name: string } | null;
+  liabilities?: { creditor: string } | null;
 }
 
 export interface AssetRow {
@@ -63,7 +67,11 @@ export interface LiabilityRow {
   paid_by: "company" | "investor";
   status: string;
   notes: string | null;
+  // Aset terkait (24 Nov 2026): hutang yang dibayar "menjadi aset" —
+  // saat lunas, aset sepenuhnya milik perusahaan.
+  asset_id?: string | null;
   brands?: { name: string } | null;
+  assets?: { name: string } | null;
 }
 
 export interface EmployeeRow {
@@ -85,8 +93,12 @@ export interface FeeSplitRow {
   dividend_pct: number;
   management_fee_pct: number;
   retained_pct: number;
-  dividend_recipients: { name: string; pct_of_dividend: number }[];
-  management_fee_recipients: { name: string; pct_of_fee: number }[];
+  // Penerima fee (24 Nov 2026): tiap penerima boleh terhubung ke seorang
+  // employee (employee_id opsional, null bila bukan tim — mis. komisaris
+  // eksternal). Tautan ini disimpan di dalam objek jsonb, struktur tabel
+  // fee_splits TIDAK berubah.
+  dividend_recipients: { name: string; pct_of_dividend: number; employee_id?: string | null }[];
+  management_fee_recipients: { name: string; pct_of_fee: number; employee_id?: string | null }[];
   effective_from: string | null;
   brands?: { name: string } | null;
 }
@@ -97,12 +109,23 @@ export function countedAmount(t: { kind: TransactionKind; amount: number; paymen
   return t.amount;
 }
 
+/**
+ * KOREKSI 24 Nov 2026 (Mattin): pembayaran hutang TIDAK BOLEH double count.
+ * Aset yang dibeli lewat hutang (mis. printer P2S) SUDAH tercatat sebagai
+ * aset. Cicilan yang dibayar HANYA mengurangi hutang — cicilan itu BUKAN
+ * pengeluaran operasional: tidak masuk total pengeluaran, tidak mengurangi
+ * laba, dan tidak menambah total nilai aset. Ini pergerakan neraca (kas
+ * berkurang, hutang berkurang), bukan beban. Karena itu expense yang punya
+ * liability_id terisi DIKECUALIKAN dari expense & net — perlakuannya sama
+ * seperti Belum reimburse: dicatat, tapi tidak masuk hitungan. View SQL
+ * v_brand_monthly_summary mengikuti aturan yang sama.
+ */
 export function summarize(transactions: TransactionRow[]) {
   const income = transactions
     .filter((t) => t.kind === "income")
     .reduce((s, t) => s + t.amount, 0);
   const expenseCounted = transactions
-    .filter((t) => t.kind === "expense")
+    .filter((t) => t.kind === "expense" && !t.liability_id)
     .reduce((s, t) => s + countedAmount(t), 0);
   const belumReimburse = transactions
     .filter((t) => t.kind === "expense" && t.payment_status === "belum_reimburse")
@@ -122,16 +145,16 @@ export function computeFeeSplit(
   dividend: number;
   managementFee: number;
   retained: number;
-  dividendBreakdown: { name: string; amount: number }[];
-  feeBreakdown: { name: string; amount: number }[];
+  dividendBreakdown: { name: string; amount: number; pct: number; employee_id?: string | null }[];
+  feeBreakdown: { name: string; amount: number; pct: number; employee_id?: string | null }[];
 } {
   if (netProfit <= 0) {
     return {
       dividend: 0,
       managementFee: 0,
       retained: 0,
-      dividendBreakdown: (split.dividend_recipients ?? []).map((r) => ({ name: r.name, amount: 0 })),
-      feeBreakdown: (split.management_fee_recipients ?? []).map((r) => ({ name: r.name, amount: 0 })),
+      dividendBreakdown: (split.dividend_recipients ?? []).map((r) => ({ name: r.name, amount: 0, pct: r.pct_of_dividend, employee_id: r.employee_id ?? null })),
+      feeBreakdown: (split.management_fee_recipients ?? []).map((r) => ({ name: r.name, amount: 0, pct: r.pct_of_fee, employee_id: r.employee_id ?? null })),
     };
   }
   const dividend = Math.round((netProfit * split.dividend_pct) / 100);
@@ -144,10 +167,14 @@ export function computeFeeSplit(
     dividendBreakdown: (split.dividend_recipients ?? []).map((r) => ({
       name: r.name,
       amount: Math.round((dividend * r.pct_of_dividend) / 100),
+      pct: r.pct_of_dividend,
+      employee_id: r.employee_id ?? null,
     })),
     feeBreakdown: (split.management_fee_recipients ?? []).map((r) => ({
       name: r.name,
       amount: Math.round((managementFee * r.pct_of_fee) / 100),
+      pct: r.pct_of_fee,
+      employee_id: r.employee_id ?? null,
     })),
   };
 }
@@ -207,7 +234,7 @@ export interface Payslip {
   sent_at: string | null;
   sent_via: SendVia;
   notes: string | null;
-  employees?: { name: string; role: string | null; team: string | null; brand_id: string } | null;
+  employees?: { name: string; role: string | null; team: string | null; brand_id: string; is_management?: boolean } | null;
   payroll_periods?: { period: string; brand_id: string } | null;
 }
 
@@ -218,9 +245,42 @@ export function payslipTotals(slips: Payslip[]) {
   return { totalNet, paid, outstanding, count: slips.length };
 }
 
-/** Slip yang sudah dibayar masuk OPEX bulan itu; yang belum = tunggakan. */
+/**
+ * Slip yang sudah dibayar masuk OPEX bulan itu; yang belum = tunggakan.
+ * KOREKSI 24 Nov 2026: sebelumnya SEMUA slip yang dibayar dihitung OPEX,
+ * termasuk slip management — padahal gaji management dibayar dari
+ * Management Fee, bukan OPEX (sama seperti fixedCostOpex). Sekarang
+ * opexFromPayslips hanya menghitung slip karyawan (is_management false);
+ * slip management dihitung terpisah oleh managementFeeFromPayslips.
+ */
 export function opexFromPayslips(slips: Payslip[]): number {
-  return slips.filter((p) => p.status === "sudah_dibayar").reduce((s, p) => s + p.net_pay, 0);
+  return slips
+    .filter((p) => p.status === "sudah_dibayar" && !p.employees?.is_management)
+    .reduce((s, p) => s + p.net_pay, 0);
+}
+
+/** Slip management yang sudah dibayar — keluar dari Management Fee, bukan OPEX. */
+export function managementFeeFromPayslips(slips: Payslip[]): number {
+  return slips
+    .filter((p) => p.status === "sudah_dibayar" && p.employees?.is_management)
+    .reduce((s, p) => s + p.net_pay, 0);
+}
+
+// ---------- Dividen tahunan (cair 1x per tahun) ----------
+export type DividendPayoutStatus = "belum_dibayar" | "sudah_dibayar";
+
+export interface DividendPayout {
+  id: string;
+  brand_id: string;
+  year: number;
+  recipient_name: string;
+  pct_of_dividend: number;
+  amount: number;
+  status: DividendPayoutStatus;
+  paid_at: string | null;
+  notes: string | null;
+  created_at?: string;
+  brands?: { name: string } | null;
 }
 
 // ---------- Modal & pajak ----------

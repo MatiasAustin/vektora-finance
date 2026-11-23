@@ -84,10 +84,15 @@ create table if not exists public.transactions (
   notes text,
   payment_status payment_status not null default 'sudah_dibayar',
   reimbursed_at timestamptz,
+  -- Bayar hutang (24 Nov 2026): transaksi cicilan/pelunasan terhubung ke
+  -- liabilities.id. BUKAN beban operasional: dikecualikan dari
+  -- expense_counted & net di summarize() dan v_brand_monthly_summary.
+  liability_id uuid references public.liabilities(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 create index if not exists idx_txn_brand_date on public.transactions (brand_id, txn_date);
+create index if not exists idx_txn_liability on public.transactions (liability_id);
 create index if not exists idx_txn_kind on public.transactions (kind);
 create index if not exists idx_txn_status on public.transactions (payment_status);
 create index if not exists idx_txn_channel on public.transactions (channel_id);
@@ -134,6 +139,10 @@ create table if not exists public.liabilities (
   paid_by paid_by not null default 'company',
   status text not null default 'aktif',
   notes text,
+  -- Aset terkait (24 Nov 2026): hutang yang dibayar "menjadi aset".
+  -- Saat lunas, aset sepenuhnya milik perusahaan. Tidak menambah total
+  -- nilai aset saat cicilan dibayar — progres hanya info kepemilikan.
+  asset_id uuid references public.assets(id) on delete set null,
   created_at timestamptz not null default now()
 );
 create index if not exists idx_liab_brand on public.liabilities (brand_id);
@@ -183,6 +192,25 @@ create table if not exists public.fee_splits (
     dividend_pct + management_fee_pct + retained_pct = 100
   )
 );
+
+-- ---------- Dividen tahunan (cair 1x per tahun, 24 Nov 2026) ----------
+-- Jumlah per penerima DIBEKUKAN saat baris dibuat ("Buat pencairan
+-- dividen {tahun}" di /fee-split) — perubahan laba setelah itu tidak
+-- mengubah jumlah yang sudah dibuat. Status dibayar ditandai manual.
+create table if not exists public.dividend_payouts (
+  id uuid primary key default gen_random_uuid(),
+  brand_id uuid not null references public.brands(id) on delete cascade,
+  year integer not null,
+  recipient_name text not null,
+  pct_of_dividend numeric(5,2) not null,
+  amount numeric(18,2) not null,
+  status text not null default 'belum_dibayar' check (status in ('belum_dibayar', 'sudah_dibayar')),
+  paid_at timestamptz,
+  notes text,
+  created_at timestamptz not null default now(),
+  constraint dividend_payout_unique unique (brand_id, year, recipient_name)
+);
+create index if not exists idx_divpayout_brand_year on public.dividend_payouts (brand_id, year);
 
 -- ---------- Peran pengguna (login) ----------
 do $$ begin
@@ -276,15 +304,19 @@ create index if not exists idx_payslip_employee on public.payslips (employee_id)
 create index if not exists idx_payslip_status on public.payslips (status);
 
 -- ---------- View: ringkasan bulanan per brand (Belum reimburse excluded) ----------
+-- KOREKSI 24 Nov 2026 (Mattin): pembayaran hutang (liability_id terisi)
+-- DIKECUALIKAN dari expense_counted & net — cicilan bukan beban
+-- operasional, hanya mengurangi hutang (anti double count: asetnya sudah
+-- tercatat). Lihat juga summarize() di src/lib/types.ts.
 create or replace view public.v_brand_monthly_summary as
 select
   brand_id,
   to_char(txn_date, 'YYYY-MM') as month,
   sum(case when kind = 'income' then amount else 0 end) as income,
-  sum(case when kind = 'expense' and payment_status = 'sudah_dibayar' then amount else 0 end) as expense_counted,
+  sum(case when kind = 'expense' and payment_status = 'sudah_dibayar' and liability_id is null then amount else 0 end) as expense_counted,
   sum(case when kind = 'expense' and payment_status = 'belum_reimburse' then amount else 0 end) as belum_reimburse,
   sum(case when kind = 'income' then amount else 0 end)
-    - sum(case when kind = 'expense' and payment_status = 'sudah_dibayar' then amount else 0 end) as net
+    - sum(case when kind = 'expense' and payment_status = 'sudah_dibayar' and liability_id is null then amount else 0 end) as net
 from public.transactions
 group by brand_id, to_char(txn_date, 'YYYY-MM');
 
@@ -310,7 +342,7 @@ select
   coalesce((select sum(total_price) from public.assets a where a.brand_id = b.id), 0) as assets_total,
   coalesce((select sum(remaining_amount) from public.liabilities l where l.brand_id = b.id and l.paid_by = 'company'), 0) as company_debt,
   coalesce((select sum(amount) from public.transactions t where t.brand_id = b.id and t.kind = 'income'), 0) as income_total,
-  coalesce((select sum(amount) from public.transactions t where t.brand_id = b.id and t.kind = 'expense' and t.payment_status = 'sudah_dibayar'), 0) as expense_counted_total
+  coalesce((select sum(amount) from public.transactions t where t.brand_id = b.id and t.kind = 'expense' and t.payment_status = 'sudah_dibayar' and t.liability_id is null), 0) as expense_counted_total
 from public.brands b;
 
 -- ---------- RLS (sederhana tapi nyata) ----------
@@ -328,6 +360,7 @@ alter table public.liabilities enable row level security;
 alter table public.loan_installments enable row level security;
 alter table public.employees enable row level security;
 alter table public.fee_splits enable row level security;
+alter table public.dividend_payouts enable row level security;
 
 do $$ begin
   create policy "authenticated read" on public.brands for select using (auth.role() = 'authenticated');
@@ -425,6 +458,17 @@ drop policy if exists "payroll periods read" on public.payroll_periods;
 create policy "payroll periods read" on public.payroll_periods for select using (public.current_user_role() is not null);
 drop policy if exists "payroll periods write" on public.payroll_periods;
 create policy "payroll periods write" on public.payroll_periods for all using (public.current_user_role() in ('admin', 'management'));
+
+-- Dividen tahunan: pola yang sama dengan fee_splits (baca untuk
+-- admin/management/komisaris/investor; karyawan TIDAK). Tulis: admin +
+-- management — PENYIMPANGAN yang disengaja dari fee_splits (yang tulisnya
+-- admin saja): tombol "Buat pencairan dividen" di app memang dibuka untuk
+-- admin DAN management, jadi RLS harus mengizinkan keduanya, kalau tidak
+-- insert dari management ditolak database.
+drop policy if exists "read operations" on public.dividend_payouts;
+create policy "read operations" on public.dividend_payouts for select using (public.current_user_role() in ('admin', 'management', 'komisaris', 'investor'));
+drop policy if exists "write admin management" on public.dividend_payouts;
+create policy "write admin management" on public.dividend_payouts for all using (public.current_user_role() in ('admin', 'management'));
 
 -- Slip gaji: admin/management semua; karyawan hanya slipnya sendiri.
 -- Komisaris & investor TIDAK boleh baca slip per karyawan.

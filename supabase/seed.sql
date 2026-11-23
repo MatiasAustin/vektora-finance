@@ -200,12 +200,31 @@ where email = 'lemuel@vektora.id' and role <> 'management';
 -- values ('<AUTH_USER_ID>', 'email@asli.id', 'Nama', 'admin', true);
 
 -- ---------- Fee split WhereIsIt (20 / 55 / 25) ----------
+-- Penerima Management Fee IKUT SHEET "Struktur Pembagian" (dibaca 24 Nov
+-- 2026) — 8 penerima, total 100% fee pool:
+--   Direktur Utama (Matias) 25%, Direktur Operasional (Januar) 20%,
+--   Komisaris Utama 7%, Komisaris 2 7%, Keuangan 10.25%, Pemasaran 10.25%,
+--   Operasional 10.25%, Administrasi 10.25%.
+-- Keuangan / Pemasaran / Operasional / Administrasi adalah POSISI —
+-- employee_id sengaja NULL di seed (orangnya diisi nanti lewat editor
+-- penerima di /fee-split, dropdown Tim; jangan hardcode di seed).
+-- Placeholder lama "Manajemen & operasional (sisa, belum dirinci) 86%"
+-- SUDAH DIHAPUS — jangan dipakai lagi di mana pun.
 insert into public.fee_splits (brand_id, dividend_pct, management_fee_pct, retained_pct, dividend_recipients, management_fee_recipients, effective_from)
 select '11111111-1111-1111-1111-111111111111', 20, 55, 25,
    '[{"name":"Febri (pemodal)","pct_of_dividend":70},{"name":"Matias Austin (eksekutor)","pct_of_dividend":30}]'::jsonb,
-   '[{"name":"Komisaris Utama","pct_of_fee":7},{"name":"Komisaris 2","pct_of_fee":7},{"name":"Manajemen & operasional (sisa, belum dirinci)","pct_of_fee":86}]'::jsonb,
+   '[{"name":"Direktur Utama (Matias)","pct_of_fee":25},{"name":"Direktur Operasional (Januar)","pct_of_fee":20},{"name":"Komisaris Utama","pct_of_fee":7},{"name":"Komisaris 2","pct_of_fee":7},{"name":"Keuangan","pct_of_fee":10.25},{"name":"Pemasaran","pct_of_fee":10.25},{"name":"Operasional","pct_of_fee":10.25},{"name":"Administrasi","pct_of_fee":10.25}]'::jsonb,
    '2026-11-16'
 where not exists (select 1 from public.fee_splits f where f.brand_id = '11111111-1111-1111-1111-111111111111' and f.effective_from = '2026-11-16');
+
+-- Koreksi untuk baris yang SUDAH ada di database (insert di atas pakai
+-- NOT EXISTS, jadi tidak mengubah baris lama yang masih berisi
+-- placeholder 86%). UPDATE ini mengganti penerimanya ke 8 penerima
+-- sheet. Aman di-run ulang.
+update public.fee_splits
+set management_fee_recipients = '[{"name":"Direktur Utama (Matias)","pct_of_fee":25},{"name":"Direktur Operasional (Januar)","pct_of_fee":20},{"name":"Komisaris Utama","pct_of_fee":7},{"name":"Komisaris 2","pct_of_fee":7},{"name":"Keuangan","pct_of_fee":10.25},{"name":"Pemasaran","pct_of_fee":10.25},{"name":"Operasional","pct_of_fee":10.25},{"name":"Administrasi","pct_of_fee":10.25}]'::jsonb
+where brand_id = '11111111-1111-1111-1111-111111111111' and effective_from = '2026-11-16'
+  and management_fee_recipients::text like '%belum dirinci%';
 
 -- Moonimo: fee split default sama (20/55/25), penerima kosong — isi saat launch.
 insert into public.fee_splits (brand_id, dividend_pct, management_fee_pct, retained_pct, dividend_recipients, management_fee_recipients, effective_from)

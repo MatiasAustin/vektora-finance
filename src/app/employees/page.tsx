@@ -82,7 +82,10 @@ export default function EmployeesPage() {
     }
     const { data: inserted, error } = await sb
       .from("employees")
-      .insert({ brand_id: form.brand_id, name, role: form.role || null, team: form.team || null, monthly_salary: Number(form.monthly_salary), is_fixed_cost: form.salary_source === "opex", is_management: form.salary_source === "fee", is_active: true })
+      // Management Fee = dibayar dari fee pool (% dari laba), BUKAN gaji
+      // tetap bulanan — jadi monthly_salary selalu 0 untuk sumber fee
+      // (24 Nov 2026, Mattin: "management fee ngapa suruh masukin nilai gaji").
+      .insert({ brand_id: form.brand_id, name, role: form.role || null, team: form.team || null, monthly_salary: form.salary_source === "fee" ? 0 : Number(form.monthly_salary), is_fixed_cost: form.salary_source === "opex", is_management: form.salary_source === "fee", is_active: true })
       .select()
       .single();
     if (error || !inserted) {
@@ -170,7 +173,11 @@ export default function EmployeesPage() {
           )}
           <input value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} placeholder="Peran (mis. Operator 3D Print)" className="rounded-xl border px-3 py-2" />
           <input value={form.team} onChange={(e) => setForm({ ...form, team: e.target.value })} placeholder="Tim (mis. Produksi WhereIsIt)" className="rounded-xl border px-3 py-2" />
-          <input type="number" min="0" value={form.monthly_salary} onChange={(e) => setForm({ ...form, monthly_salary: e.target.value })} placeholder="Gaji / bulan (Rp)" className="rounded-xl border px-3 py-2" required />
+          {form.salary_source === "fee" ? (
+            <div className="rounded-xl border bg-slate-50 px-3 py-2 text-sm text-slate-600">Dibayar dari Management Fee — bagiannya % dari fee pool (lihat /fee-split), bukan gaji tetap bulanan. Nggak perlu isi nominal.</div>
+          ) : (
+            <input type="number" min="0" value={form.monthly_salary} onChange={(e) => setForm({ ...form, monthly_salary: e.target.value })} placeholder="Gaji / bulan (Rp)" className="rounded-xl border px-3 py-2" required />
+          )}
           <fieldset className="rounded-xl border px-3 py-2 sm:col-span-2">
             <legend className="px-1 text-xs font-semibold text-slate-500">Sumber gaji — pilih satu</legend>
             <div className="flex flex-wrap gap-4 text-sm">
@@ -205,7 +212,7 @@ export default function EmployeesPage() {
           {filtered.filter((e) => e.is_management).map((e) => (
             <li key={e.id} className="flex justify-between gap-2 py-3 text-sm">
               <div className="min-w-0 flex-1"><p className="break-words font-medium">{e.name} {!e.is_active && <span className="text-slate-400">(nonaktif)</span>}</p><p className="text-xs text-slate-500">{e.brands?.name} · {e.role ?? "—"} · Tim {e.team ?? "—"} · Manajemen (Fee)</p></div>
-              <div className="flex flex-wrap items-center gap-3"><b className="shrink-0 whitespace-nowrap">{formatIDR(e.monthly_salary)}/bln</b><button onClick={() => toggleActive(e)} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{e.is_active ? "Nonaktifkan" : "Aktifkan"}</button>{canManageTeam(role) && <button onClick={() => removeEmployee(e)} className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">Hapus</button>}</div>
+              <div className="flex flex-wrap items-center gap-3"><b className="shrink-0 whitespace-nowrap">Dari Management Fee</b><button onClick={() => toggleActive(e)} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{e.is_active ? "Nonaktifkan" : "Aktifkan"}</button>{canManageTeam(role) && <button onClick={() => removeEmployee(e)} className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">Hapus</button>}</div>
             </li>
           ))}
           {filtered.filter((e) => e.is_management).length === 0 && <li className="py-4 text-sm text-slate-500">Belum ada management yang terdaftar sebagai tim.</li>}

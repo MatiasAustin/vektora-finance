@@ -184,15 +184,21 @@ Rp0 (sweat equity). `taxes`: PPN/PPh per periode (seed: PPN Nov 2026 Rp0,
   Direktur Utama (Matias) 25%, Direktur Operasional (Januar) 20%, Komisaris Utama 7%,
   Komisaris 2 7%, Keuangan 10.25%, Pemasaran 10.25%, Operasional 10.25%,
   Administrasi 10.25% (total 100% fee pool). Keuangan/Pemasaran/Operasional/
-  Administrasi adalah posisi — orangnya dihubungkan lewat dropdown Tim di editor
-  penerima, tanpa mengubah %.
+  Administrasi adalah posisi — orangnya dihubungkan lewat dropdown Orang di editor
+  penerima, tanpa mengubah %. **Peran ganda:** Febri = investor (dividen 70%)
+  SEKALIGUS komisaris (fee 7%) — satu orang dapat dividen dan fee; hubungkan
+  kedua barisnya ke profil Febri di editor. Kursi komisarisnya (Utama atau 2)
+  belum dikonfirmasi — dipilih di editor, jangan ditebak.
 - Contoh Nov 2026: laba Rp417.118 → Dividen Rp83.424 (Febri 70% Rp58.397 /
   Matias 30% Rp25.027), Management Fee Rp229.415, Ditahan Rp104.279.
 - Ubah persentase di halaman `/fee-split` (validasi total = 100). Daftar penerima
   dividen & Management Fee bisa ditambah/dihapus/diubah % di editor "Edit penerima
-  fee" (admin saja; total % tiap daftar harus 100%). Penerima yang merupakan tim
-  bisa dihubungkan ke employee (dropdown Tim) — muncul tautan "Lihat slip" ke
-  `/payslips`.
+  fee" (admin saja; total % tiap daftar harus 100%). Penerima dihubungkan ke
+  orang terdaftar lewat dropdown **Orang** (semua profil: tim, investor,
+  komisaris) — tampil sebagai "Fungsi — Nama" (mis. "Komisaris Utama — Febri").
+  Bila profil yang dipilih punya baris karyawan, tautan "Lihat slip gaji" ke
+  `/payslips` ikut muncul; bila tidak, penerima tetap dapat slip fee/dividen
+  dari halaman ini tanpa masuk sistem karyawan.
 - **Dividen Tahunan:** dividen dicairkan 1x per tahun (bagian "Dividen Tahunan" di
   `/fee-split`): pilih tahun → laba tahunan per brand → tombol "Buat pencairan
   dividen {tahun}" (admin/management). Jumlah per penerima **dibekukan saat

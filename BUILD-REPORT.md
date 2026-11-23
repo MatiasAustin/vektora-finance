@@ -564,3 +564,41 @@ dipakai apa adanya (Mattin: `tiasaustin32@gmail.com`).
   tetap satu, dengan radio sumber gaji yang sudah ada.
 - Baris Lemuel di seed TIDAK dihapus — Mattin yang memutuskan sendiri
   lewat tombol Hapus setelah fitur ini live.
+
+### 11. Penerima fee/dividen dihubungkan ke PROFIL, bukan hanya employee — peran ganda Febri (Mattin ~02:32 WIB)
+- Masalah: Febri = investor (dividen 70%) SEKALIGUS komisaris (fee 7%) — satu
+  orang dapat dividen + fee ("gaji"). Editor penerima lama hanya bisa
+  menghubungkan penerima ke EMPLOYEE (dropdown "Tim"), padahal Febri adalah
+  profil terdaftar (investor), bukan karyawan — jadi tidak bisa dihubungkan
+  sebagai komisaris.
+- Perubahan (`src/app/fee-split/page.tsx`, `src/lib/types.ts`):
+  - Dropdown "Tim" di editor penerima diganti dropdown **"Orang"** yang
+    memuat SEMUA profil aktif dari tabel `profiles` (nama + label peran:
+    Matias, Januar, Avrina, Lemuel, Rohimat, Febri, komisaris). Berlaku
+    untuk daftar Penerima Dividen maupun Penerima Management Fee.
+  - Tautan disimpan sebagai field opsional baru **`profile_id`** di dalam
+    objek recipient jsonb (`fee_splits.dividend_recipients` /
+    `management_fee_recipients`). Field lama **`employee_id` dipertahankan**
+    untuk kompatibilitas — tidak dihapus, tidak ada migrasi baris lama.
+  - Saat profil dipilih, `employee_id` ikut terisi otomatis dari
+    `profiles.employee_id` profil itu (bila ada), supaya tautan "Lihat slip
+    gaji" tetap jalan. Bila profil tidak punya employee_id, employee_id
+    jadi null — penerima tetap dapat slip fee/dividen dari halaman
+    fee-split, TIDAK dipaksa masuk sistem karyawan/slip gaji.
+  - Tampilan: penerima yang terhubung menunjukkan "Fungsi — Nama", mis.
+    "Komisaris Utama — Febri", di kartu Dividen & Management Fee, di daftar
+    Dividen Tahunan, dan di kartu Slip Fee maupun Slip Dividen (judul,
+    baris Penerima, tanda tangan, teks WA). Bila nama penerima sudah
+    menyebut orangnya (mis. "Febri (pemodal)"), tampil apa adanya tanpa
+    pengulangan nama.
+  - Query `employees` yang sudah tidak dipakai di halaman ini dihapus
+    (halaman kini hanya memuat fee_splits + transactions + profiles).
+- **seed.sql TIDAK diubah untuk Febri:** kursi komisarisnya (Utama atau 2)
+  BELUM dikonfirmasi — Mattin yang memilih sendiri di editor dengan
+  menghubungkan baris "Komisaris Utama" atau "Komisaris 2" ke profil
+  Febri. Tidak ada perubahan persentase. (Hanya komentar "dropdown Tim"
+  di seed diperbarui jadi "dropdown Orang".)
+- Catatan: halaman fee-split dibaca semua peran; query profiles mengikuti
+  RLS yang sama seperti /team dan /employees (baca untuk admin/management).
+  Bila profil tidak terbaca untuk peran read-only, label jatuh ke nama
+  fungsi saja.

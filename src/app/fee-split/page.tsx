@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { computeFeeSplit, summarize } from "@/lib/types";
-import type { Brand, DividendPayout, EmployeeRow, FeeSplitRow, TransactionRow } from "@/lib/types";
+import type { Brand, DividendPayout, FeeSplitRow, Profile, TransactionRow } from "@/lib/types";
 import { formatDateID, formatIDR } from "@/lib/format";
 import { BrandSelect, Card, EmptySupabase, ReadOnlyNotice } from "@/components/ui";
-import { canEdit, canEditFeeSplit, useAuth } from "@/lib/auth";
+import { canEdit, canEditFeeSplit, ROLE_LABELS, useAuth } from "@/lib/auth";
 import { useBrandsChannels } from "@/lib/useData";
 
 export default function FeeSplitPage() {
@@ -15,14 +15,18 @@ export default function FeeSplitPage() {
   const { brands } = useBrandsChannels();
   const [splits, setSplits] = useState<FeeSplitRow[]>([]);
   const [txns, setTxns] = useState<TransactionRow[]>([]);
-  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
+  // Profil terdaftar (24 Nov 2026): penerima fee/dividen dihubungkan ke
+  // PROFIL, bukan hanya ke employee — investor & komisaris adalah profil,
+  // bukan karyawan (contoh: Febri = investor + komisaris, dapat dividen
+  // sekaligus fee). Query sama seperti /team dan /employees.
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [brandId, setBrandId] = useState("all");
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   // Draft editor penerima fee (24 Nov 2026): diedit per kartu brand,
   // disimpan sekaligus ke fee_splits (jsonb). Bukan state global — tiap
   // kartu punya draft sendiri yang di-reset dari data tersimpan tiap load.
-  type RecipientDraft = { name: string; pct: number; employee_id: string | null };
+  type RecipientDraft = { name: string; pct: number; employee_id: string | null; profile_id: string | null };
   const [drafts, setDrafts] = useState<Record<string, { dividend: RecipientDraft[]; fee: RecipientDraft[] }>>({});
   // Dividen tahunan (24 Nov 2026): cair 1x per tahun.
   const [year, setYear] = useState(2026);
@@ -44,14 +48,14 @@ export default function FeeSplitPage() {
   async function load() {
     const sb = getSupabase();
     if (!sb) return setLoading(false);
-    const [f, t, e] = await Promise.all([
+    const [f, t, p] = await Promise.all([
       sb.from("fee_splits").select("*, brands(name)").order("effective_from", { ascending: false }),
       sb.from("transactions").select("*").order("txn_date", { ascending: false }).limit(500),
-      sb.from("employees").select("*").eq("is_active", true).order("name"),
+      sb.from("profiles").select("*").eq("active", true).order("full_name"),
     ]);
     if (f.data) setSplits(f.data as FeeSplitRow[]);
     if (t.data) setTxns(t.data as TransactionRow[]);
-    if (e.data) setEmployees(e.data as EmployeeRow[]);
+    if (p.data) setProfiles(p.data as Profile[]);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -62,8 +66,8 @@ export default function FeeSplitPage() {
     const d: Record<string, { dividend: RecipientDraft[]; fee: RecipientDraft[] }> = {};
     for (const s of splits) {
       d[s.id] = {
-        dividend: (s.dividend_recipients ?? []).map((r) => ({ name: r.name, pct: r.pct_of_dividend, employee_id: r.employee_id ?? null })),
-        fee: (s.management_fee_recipients ?? []).map((r) => ({ name: r.name, pct: r.pct_of_fee, employee_id: r.employee_id ?? null })),
+        dividend: (s.dividend_recipients ?? []).map((r) => ({ name: r.name, pct: r.pct_of_dividend, employee_id: r.employee_id ?? null, profile_id: r.profile_id ?? null })),
+        fee: (s.management_fee_recipients ?? []).map((r) => ({ name: r.name, pct: r.pct_of_fee, employee_id: r.employee_id ?? null, profile_id: r.profile_id ?? null })),
       };
     }
     setDrafts(d);
@@ -99,6 +103,47 @@ export default function FeeSplitPage() {
     () => visibleSplits.reduce((s, sp) => s + brandSum(sp.brand_id).net, 0),
     [visibleSplits, brandSum]
   );
+
+  // ---------- Tautan penerima ke profil terdaftar (24 Nov 2026) ----------
+  // Satu orang bisa pegang dua peran: Febri = investor (dividen 70%) +
+  // komisaris (fee 7%) — dapat dividen SEKALIGUS fee. Jadi penerima
+  // dihubungkan ke profil, bukan hanya ke employee. Tampilan: "Komisaris
+  // Utama — Febri"; bila nama penerima sudah sama dengan nama profil
+  // (mis. "Febri (pemodal)"), tampil apa adanya tanpa pengulangan.
+  // (Didefinisikan di sini — SEBELUM feeSlipData — karena memo slip fee
+  // di bawah memakai recipientLabel saat render.)
+  const profileById = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
+  function profileDisplayName(id: string | null | undefined): string {
+    if (!id) return "";
+    const p = profileById.get(id);
+    return p ? (p.full_name ?? p.email ?? "") : "";
+  }
+  function recipientLabel(name: string, profile_id?: string | null): string {
+    const person = profileDisplayName(profile_id);
+    if (!person) return name;
+    // Jangan gandakan bila nama penerima sudah menyebut orangnya.
+    if (name.toLowerCase().includes(person.toLowerCase().split(" ")[0])) return name;
+    return `${name} — ${person}`;
+  }
+  // Pilih profil di editor: isi profile_id, dan ikut isi employee_id dari
+  // profil itu bila ada (supaya "Lihat slip gaji" tetap jalan). Kosongkan
+  // pilihan = lepas tautan (kedua id jadi null).
+  function pickProfileForDraft(splitId: string, kind: "dividend" | "fee", idx: number, profileId: string) {
+    const p = profileId ? profileById.get(profileId) : undefined;
+    updateDraft(splitId, kind, idx, {
+      profile_id: profileId || null,
+      employee_id: p?.employee_id ?? null,
+    });
+  }
+
+  // Label slip dividen: cari tautan profil penerima dividen yang namanya
+  // cocok dengan pencairan ini (nama unik per daftar penerima).
+  const payoutLabel = useMemo(() => {
+    if (!selectedPayout) return "";
+    const split = splits.find((s) => s.brand_id === selectedPayout.brand_id);
+    const rec = split?.dividend_recipients?.find((r) => r.name === selectedPayout.recipient_name);
+    return recipientLabel(selectedPayout.recipient_name, rec?.profile_id ?? null);
+  }, [selectedPayout, splits, profileById]);
 
   // ---------- Dividen tahunan ----------
   const editable = canEdit(role);
@@ -172,7 +217,7 @@ export default function FeeSplitPage() {
   }
 
   function waLinkDiv(p: DividendPayout): string {
-    const text = `Slip Dividen — PT Vektora Teknologi Nusantara\n${p.recipient_name} · ${p.brands?.name ?? ""}\nTahun: ${p.year}\nBagian dividen: ${p.pct_of_dividend}% = ${formatIDR(p.amount)}\nStatus: ${p.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}`;
+    const text = `Slip Dividen — PT Vektora Teknologi Nusantara\n${payoutLabel || p.recipient_name} · ${p.brands?.name ?? ""}\nTahun: ${p.year}\nBagian dividen: ${p.pct_of_dividend}% = ${formatIDR(p.amount)}\nStatus: ${p.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }
 
@@ -213,14 +258,14 @@ export default function FeeSplitPage() {
         ? fee.feeBreakdown.find((r) => r.name === feeSlip.name)
         : fee.dividendBreakdown.find((r) => r.name === feeSlip.name);
     if (!row) return null;
-    return { split, net, fee, row };
-  }, [feeSlip, splits, monthTxns]);
+    return { split, net, fee, row, label: recipientLabel(row.name, row.profile_id) };
+  }, [feeSlip, splits, monthTxns, profileById]);
 
   function waLinkFee(): string {
     if (!feeSlip || !feeSlipData) return "";
     const { split, row } = feeSlipData;
-    const label = feeSlip.kind === "fee" ? "Management Fee" : "Dividen";
-    const text = `Slip ${label} — PT Vektora Teknologi Nusantara\n${row.name} · ${split.brands?.name ?? ""}\nPeriode: ${feeSlipMonth}\nBagian ${label.toLowerCase()}: ${row.pct}% = ${formatIDR(row.amount)}`;
+    const label = feeSlipData.label;
+    const text = `Slip ${label} — PT Vektora Teknologi Nusantara\n${label} · ${split.brands?.name ?? ""}\nPeriode: ${feeSlipMonth}\nBagian ${feeSlip.kind === "fee" ? "Management Fee" : "dividen"}: ${row.pct}% = ${formatIDR(row.amount)}`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }
 
@@ -265,8 +310,8 @@ export default function FeeSplitPage() {
     const sb = getSupabase();
     if (!sb) return;
     const { error } = await sb.from("fee_splits").update({
-      dividend_recipients: d.dividend.map((r) => ({ name: r.name.trim(), pct_of_dividend: Number(r.pct) || 0, employee_id: r.employee_id || null })),
-      management_fee_recipients: d.fee.map((r) => ({ name: r.name.trim(), pct_of_fee: Number(r.pct) || 0, employee_id: r.employee_id || null })),
+      dividend_recipients: d.dividend.map((r) => ({ name: r.name.trim(), pct_of_dividend: Number(r.pct) || 0, employee_id: r.employee_id || null, profile_id: r.profile_id || null })),
+      management_fee_recipients: d.fee.map((r) => ({ name: r.name.trim(), pct_of_fee: Number(r.pct) || 0, employee_id: r.employee_id || null, profile_id: r.profile_id || null })),
     }).eq("id", split.id);
     if (error) setMsg("Gagal simpan penerima: " + error.message);
     else { setMsg("Daftar penerima tersimpan."); load(); }
@@ -286,7 +331,7 @@ export default function FeeSplitPage() {
     setDrafts((prev) => {
       const cur = prev[splitId];
       if (!cur) return prev;
-      return { ...prev, [splitId]: { ...cur, [kind]: [...cur[kind], { name: "", pct: 0, employee_id: null }] } };
+      return { ...prev, [splitId]: { ...cur, [kind]: [...cur[kind], { name: "", pct: 0, employee_id: null, profile_id: null }] } };
     });
   }
 
@@ -353,7 +398,7 @@ export default function FeeSplitPage() {
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="rounded-2xl bg-blue-50 p-4"><p className="text-xs font-semibold uppercase text-slate-500">Dividen</p><p className="text-xl font-bold">{formatIDR(fee.dividend)}</p>
                 {fee.dividendBreakdown.map((r) => (
-                  <p key={r.name} className="text-sm text-slate-600">{r.name} — {r.pct}%: <b>{formatIDR(r.amount)}</b>
+                  <p key={r.name} className="text-sm text-slate-600">{recipientLabel(r.name, r.profile_id)} — {r.pct}%: <b>{formatIDR(r.amount)}</b>
                     {r.employee_id && <> · <Link href="/payslips" className="font-semibold text-vektora-600 underline">Lihat slip gaji</Link></>}
                     {" · "}<button onClick={() => setFeeSlip({ kind: "dividend", splitId: s.id, name: r.name })} className="font-semibold text-vektora-600 underline">Slip</button>
                   </p>
@@ -362,7 +407,7 @@ export default function FeeSplitPage() {
               </div>
               <div className="rounded-2xl bg-blue-50 p-4"><p className="text-xs font-semibold uppercase text-slate-500">Management Fee</p><p className="text-xl font-bold">{formatIDR(fee.managementFee)}</p>
                 {fee.feeBreakdown.map((r) => (
-                  <p key={r.name} className="text-sm text-slate-600">{r.name} — {r.pct}% dari fee pool: <b>{formatIDR(r.amount)}</b>
+                  <p key={r.name} className="text-sm text-slate-600">{recipientLabel(r.name, r.profile_id)} — {r.pct}% dari fee pool: <b>{formatIDR(r.amount)}</b>
                     {r.employee_id && <> · <Link href="/payslips" className="font-semibold text-vektora-600 underline">Lihat slip gaji</Link></>}
                     {" · "}<button onClick={() => setFeeSlip({ kind: "fee", splitId: s.id, name: r.name })} className="font-semibold text-vektora-600 underline">Slip</button>
                   </p>
@@ -376,9 +421,12 @@ export default function FeeSplitPage() {
                 <h4 className="font-bold">Edit penerima fee</h4>
                 <p className="mt-1 text-xs text-slate-500">
                   Tambah / hapus / ubah % tiap penerima. Total % tiap daftar harus 100% — simpan ditolak
-                  bila bukan 100%. Pilih "Tim" bila penerima adalah anggota tim (slip gajinya tetap
-                  dibuat lewat generate di /payslips; gaji tim dibayar dari Management Fee, bukan OPEX).
-                  Kosongkan bila penerima bukan tim (mis. komisaris eksternal).
+                  bila bukan 100%. Pilih "Orang" untuk menghubungkan penerima ke orang terdaftar
+                  (profil apa saja: tim, investor, komisaris). Satu orang bisa pegang dua peran — contoh
+                  Febri: investor (dividen 70%) SEKALIGUS komisaris (fee 7%), jadi dia dapat dividen
+                  dan fee; hubungkan kedua barisnya ke profil Febri (kursi komisarisnya — Utama atau 2 —
+                  dipilih di sini, jangan ditebak). Bila profil yang dipilih punya baris karyawan,
+                  tautan slip gaji ikut terisi otomatis. Kosongkan bila penerima belum diisi orangnya.
                 </p>
                 {(["dividend", "fee"] as const).map((kind) => {
                   const list = drafts[s.id][kind];
@@ -391,10 +439,10 @@ export default function FeeSplitPage() {
                           <div key={idx} className="flex flex-wrap items-center gap-2">
                             <input value={r.name} onChange={(e) => updateDraft(s.id, kind, idx, { name: e.target.value })} placeholder="Nama penerima" className="min-w-0 flex-1 rounded-xl border px-2 py-1 text-sm" />
                             <label className="flex items-center gap-1 text-sm"><input type="number" min="0" max="100" step="0.01" value={r.pct} onChange={(e) => updateDraft(s.id, kind, idx, { pct: Number(e.target.value) })} className="w-20 rounded-xl border px-2 py-1 text-sm" />%</label>
-                            <select value={r.employee_id ?? ""} onChange={(e) => updateDraft(s.id, kind, idx, { employee_id: e.target.value || null })} className="rounded-xl border px-2 py-1 text-sm">
-                              <option value="">Tim — (bukan tim)</option>
-                              {employees.filter((x) => x.brand_id === s.brand_id).map((x) => (
-                                <option key={x.id} value={x.id}>{x.name}{x.role ? ` — ${x.role}` : ""}</option>
+                            <select value={r.profile_id ?? ""} onChange={(e) => pickProfileForDraft(s.id, kind, idx, e.target.value)} className="rounded-xl border px-2 py-1 text-sm">
+                              <option value="">Orang — (belum diisi)</option>
+                              {profiles.map((p) => (
+                                <option key={p.id} value={p.id}>{p.full_name ?? p.email} — {ROLE_LABELS[p.role]}</option>
                               ))}
                             </select>
                             <button onClick={() => removeDraftRow(s.id, kind, idx)} className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">Hapus</button>
@@ -409,7 +457,7 @@ export default function FeeSplitPage() {
                 <button onClick={() => saveRecipients(s)} className="mt-4 rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">Simpan penerima</button>
               </div>
             )}
-            <p className="mt-3 text-xs text-slate-500">Contoh WhereIsIt Nov 2026 (setelah seed-latest): laba Rp417.118 → Dividen Rp83.424 (Febri 70% Rp58.397 / Matias 30% Rp25.027), Management Fee Rp229.415, Ditahan Rp104.279. Penerima Management Fee ikut sheet "Struktur Pembagian": Dirut 25%, Dirops 20%, Komisaris Utama 7%, Komisaris 2 7%, Keuangan 10.25%, Pemasaran 10.25%, Operasional 10.25%, Administrasi 10.25%. Daftar penerima diubah di editor "Edit penerima fee" di atas (admin saja); posisi fungsi (Keuangan, Pemasaran, dst.) dihubungkan ke orangnya lewat dropdown Tim tanpa mengubah %.</p>
+            <p className="mt-3 text-xs text-slate-500">Contoh WhereIsIt Nov 2026 (setelah seed-latest): laba Rp417.118 → Dividen Rp83.424 (Febri 70% Rp58.397 / Matias 30% Rp25.027), Management Fee Rp229.415, Ditahan Rp104.279. Penerima Management Fee ikut sheet "Struktur Pembagian": Dirut 25%, Dirops 20%, Komisaris Utama 7%, Komisaris 2 7%, Keuangan 10.25%, Pemasaran 10.25%, Operasional 10.25%, Administrasi 10.25%. Daftar penerima diubah di editor "Edit penerima fee" di atas (admin saja); posisi fungsi (Keuangan, Pemasaran, dst.) dihubungkan ke orangnya lewat dropdown Orang tanpa mengubah %. Satu orang bisa pegang dua peran: Febri = investor (dividen 70%) + komisaris (fee 7%) — hubungkan kedua barisnya ke profil Febri; kursi komisarisnya (Utama atau 2) dipilih di editor, jangan ditebak.</p>
           </Card>
         );
       })}
@@ -447,7 +495,7 @@ export default function FeeSplitPage() {
               <ul className="mt-2 space-y-1 text-sm">
                 {fee.dividendBreakdown.map((r) => (
                   <li key={r.name} className="flex flex-wrap justify-between gap-2">
-                    <span>{r.name}</span><b>{formatIDR(r.amount)}</b>
+                    <span>{recipientLabel(r.name, r.profile_id)}</span><b>{formatIDR(r.amount)}</b>
                   </li>
                 ))}
               </ul>
@@ -487,10 +535,10 @@ export default function FeeSplitPage() {
           <div className="border-b pb-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-vektora-600">PT Vektora Teknologi Nusantara</p>
             <h3 className="text-lg font-black">Slip Dividen</h3>
-            <p className="text-sm text-slate-500">Tahun {selectedPayout.year} · {selectedPayout.recipient_name} · {selectedPayout.brands?.name ?? ""}</p>
+            <p className="text-sm text-slate-500">Tahun {selectedPayout.year} · {payoutLabel} · {selectedPayout.brands?.name ?? ""}</p>
           </div>
           <div className="mt-3 space-y-1 text-sm">
-            <p className="flex justify-between"><span>Penerima</span><b>{selectedPayout.recipient_name}</b></p>
+            <p className="flex justify-between"><span>Penerima</span><b>{payoutLabel}</b></p>
             <p className="flex justify-between"><span>Brand</span><b>{selectedPayout.brands?.name ?? "—"}</b></p>
             <p className="flex justify-between"><span>Bagian dividen</span><b>{selectedPayout.pct_of_dividend}%</b></p>
             <p className="flex justify-between border-t pt-2 text-base"><span>Jumlah dividen</span><b>{formatIDR(selectedPayout.amount)}</b></p>
@@ -499,7 +547,7 @@ export default function FeeSplitPage() {
           </div>
           <div className="mt-6 flex justify-between text-xs text-slate-500">
             <span>Disetujui,<br /><br /><br />_________________<br />PT Vektora</span>
-            <span>Diterima oleh,<br /><br /><br />_________________<br />{selectedPayout.recipient_name}</span>
+            <span>Diterima oleh,<br /><br /><br />_________________<br />{payoutLabel}</span>
           </div>
           <div className="mt-4 flex flex-wrap gap-2 print:hidden">
             <button onClick={() => window.print()} className="rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">Cetak slip</button>
@@ -539,7 +587,7 @@ export default function FeeSplitPage() {
           <div className="border-b pb-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-vektora-600">PT Vektora Teknologi Nusantara</p>
             <h3 className="text-lg font-black">Slip {feeSlip.kind === "fee" ? "Management Fee" : "Dividen"}</h3>
-            <p className="text-sm text-slate-500">{feeSlipData.row.name} · {feeSlipData.split.brands?.name ?? ""}</p>
+            <p className="text-sm text-slate-500">{feeSlipData.label} · {feeSlipData.split.brands?.name ?? ""}</p>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm print:hidden">
             <label>Periode
@@ -547,7 +595,7 @@ export default function FeeSplitPage() {
             </label>
           </div>
           <div className="mt-3 space-y-1 text-sm">
-            <p className="flex justify-between"><span>Penerima</span><b>{feeSlipData.row.name}</b></p>
+            <p className="flex justify-between"><span>Penerima</span><b>{feeSlipData.label}</b></p>
             <p className="flex justify-between"><span>Brand</span><b>{feeSlipData.split.brands?.name ?? "—"}</b></p>
             <p className="flex justify-between"><span>Periode</span><b>{feeSlipMonth}</b></p>
             <p className="flex justify-between"><span>Laba bersih brand bulan itu</span><b>{formatIDR(feeSlipData.net)}</b></p>
@@ -561,7 +609,7 @@ export default function FeeSplitPage() {
           </div>
           <div className="mt-6 flex justify-between text-xs text-slate-500">
             <span>Disetujui,<br /><br /><br />_________________<br />PT Vektora</span>
-            <span>Diterima oleh,<br /><br /><br />_________________<br />{feeSlipData.row.name}</span>
+            <span>Diterima oleh,<br /><br /><br />_________________<br />{feeSlipData.label}</span>
           </div>
           <div className="mt-4 flex flex-wrap gap-2 print:hidden">
             <button onClick={() => window.print()} className="rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">Cetak slip</button>

@@ -97,8 +97,15 @@ export interface FeeSplitRow {
   // employee (employee_id opsional, null bila bukan tim — mis. komisaris
   // eksternal). Tautan ini disimpan di dalam objek jsonb, struktur tabel
   // fee_splits TIDAK berubah.
-  dividend_recipients: { name: string; pct_of_dividend: number; employee_id?: string | null }[];
-  management_fee_recipients: { name: string; pct_of_fee: number; employee_id?: string | null }[];
+  // Peran ganda (24 Nov 2026, Mattin): Febri = investor (dividen 70%)
+  // SEKALIGUS komisaris (fee 7%) — satu orang dapat dividen + fee. Karena
+  // itu penerima dihubungkan ke PROFIL terdaftar (profile_id), bukan hanya
+  // ke employee: investor/komisaris adalah profil, bukan karyawan. Bila
+  // profil yang dipilih punya employee_id, employee_id ikut terisi supaya
+  // tautan "Lihat slip gaji" tetap jalan. employee_id lama dipertahankan
+  // untuk kompatibilitas — jangan dihapus.
+  dividend_recipients: { name: string; pct_of_dividend: number; employee_id?: string | null; profile_id?: string | null }[];
+  management_fee_recipients: { name: string; pct_of_fee: number; employee_id?: string | null; profile_id?: string | null }[];
   effective_from: string | null;
   brands?: { name: string } | null;
 }
@@ -145,16 +152,16 @@ export function computeFeeSplit(
   dividend: number;
   managementFee: number;
   retained: number;
-  dividendBreakdown: { name: string; amount: number; pct: number; employee_id?: string | null }[];
-  feeBreakdown: { name: string; amount: number; pct: number; employee_id?: string | null }[];
+  dividendBreakdown: { name: string; amount: number; pct: number; employee_id?: string | null; profile_id?: string | null }[];
+  feeBreakdown: { name: string; amount: number; pct: number; employee_id?: string | null; profile_id?: string | null }[];
 } {
   if (netProfit <= 0) {
     return {
       dividend: 0,
       managementFee: 0,
       retained: 0,
-      dividendBreakdown: (split.dividend_recipients ?? []).map((r) => ({ name: r.name, amount: 0, pct: r.pct_of_dividend, employee_id: r.employee_id ?? null })),
-      feeBreakdown: (split.management_fee_recipients ?? []).map((r) => ({ name: r.name, amount: 0, pct: r.pct_of_fee, employee_id: r.employee_id ?? null })),
+      dividendBreakdown: (split.dividend_recipients ?? []).map((r) => ({ name: r.name, amount: 0, pct: r.pct_of_dividend, employee_id: r.employee_id ?? null, profile_id: r.profile_id ?? null })),
+      feeBreakdown: (split.management_fee_recipients ?? []).map((r) => ({ name: r.name, amount: 0, pct: r.pct_of_fee, employee_id: r.employee_id ?? null, profile_id: r.profile_id ?? null })),
     };
   }
   const dividend = Math.round((netProfit * split.dividend_pct) / 100);
@@ -169,12 +176,14 @@ export function computeFeeSplit(
       amount: Math.round((dividend * r.pct_of_dividend) / 100),
       pct: r.pct_of_dividend,
       employee_id: r.employee_id ?? null,
+      profile_id: r.profile_id ?? null,
     })),
     feeBreakdown: (split.management_fee_recipients ?? []).map((r) => ({
       name: r.name,
       amount: Math.round((managementFee * r.pct_of_fee) / 100),
       pct: r.pct_of_fee,
       employee_id: r.employee_id ?? null,
+      profile_id: r.profile_id ?? null,
     })),
   };
 }

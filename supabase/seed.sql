@@ -207,7 +207,7 @@ where email = 'lemuel@vektora.id' and role <> 'management';
 --   Operasional 10.25%, Administrasi 10.25%.
 -- Keuangan / Pemasaran / Operasional / Administrasi adalah POSISI —
 -- employee_id sengaja NULL di seed (orangnya diisi nanti lewat editor
--- penerima di /fee-split, dropdown Tim; jangan hardcode di seed).
+-- penerima di /fee-split, dropdown Orang; jangan hardcode di seed).
 -- Placeholder lama "Manajemen & operasional (sisa, belum dirinci) 86%"
 -- SUDAH DIHAPUS — jangan dipakai lagi di mana pun.
 insert into public.fee_splits (brand_id, dividend_pct, management_fee_pct, retained_pct, dividend_recipients, management_fee_recipients, effective_from)

@@ -243,6 +243,13 @@ Rp0 (sweat equity). `taxes`: PPN/PPh per periode (seed: PPN Nov 2026 Rp0,
   "Sudah dibayar RpX dari RpY" dan progres kepemilikan ("milik perusahaan RpX
   dari RpY"); saat lunas: "Lunas — aset sepenuhnya milik perusahaan". Total
   nilai aset TIDAK berubah saat cicilan dibayar.
+- **Edit / hapus transaksi (24 Nov 2026):** tiap baris di `/transactions`
+  punya tombol Edit (admin + management) dan Hapus (admin saja). Edit
+  pembayaran hutang menyesuaikan sisa hutang dengan selisih jumlah lama dan
+  baru (floor 0; lunas ↔ aktif ikut berubah); hapus pembayaran hutang
+  mengembalikan jumlahnya ke sisa hutang. Setiap edit/hapus tercatat di
+  tabel `audit_log` (siapa, kapan, field apa yang berubah) dan bisa dilihat
+  di halaman **Riwayat** (`/history`, admin + management saja).
 
 ### 5. Investasi / aset
 Aset (P2S Rp10.000.555, PETG Rp892.528, A1 Rp5.267.960 — total Rp16.161.043)
@@ -297,8 +304,18 @@ tidak ada data palsu yang ditampilkan sebagai data live.
    `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (dan `SUPABASE_SECRET_KEY` bila dipakai server).
 4. Deploy. Setiap push ke `main` akan redeploy otomatis.
 
+## Setup database — SATU file (24 Nov 2026)
+Jalankan **hanya `supabase/final-setup.sql`** di Supabase SQL Editor (satu
+transaksi, aman di-run ulang). File-file lama (`schema.sql`, `seed.sql`,
+`dedupe-duplicates.sql`, `seed-latest-2026-11-24.sql`,
+`migration-dividend-payouts.sql`, `seed-wa-2026-11-24.sql`) **JANGAN**
+dijalankan lagi — isinya sudah digabung di `final-setup.sql`. Setiap revisi
+SQL ke depan cukup update file itu. Setelah dijalankan, cek
+`v_brand_monthly_summary` Nov 2026: income 4.391.387, expense 2.165.738,
+belum reimburse 605.423, saldo 2.225.649; aset 3 baris, hutang 1 baris.
+
 ## Yang masih perlu Mattin
-- Buat project Supabase + jalankan schema/seed (atau beri akses agar bisa dijalankan).
+- Buat project Supabase + jalankan `supabase/final-setup.sql` (satu file saja).
 - **Buat akun Auth untuk tim** (Matias, Januar, Febri, komisaris, Lemuel) di Supabase
   → Authentication → Users, dengan email yang sama seperti di `seed.sql`; profil
   + peran sudah di-seed (join by email) atau bisa ditambah di `/team`.

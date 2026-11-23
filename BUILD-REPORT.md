@@ -602,3 +602,143 @@ dipakai apa adanya (Mattin: `tiasaustin32@gmail.com`).
   RLS yang sama seperti /team dan /employees (baca untuk admin/management).
   Bila profil tidak terbaca untuk peran read-only, label jatuh ke nama
   fungsi saja.
+
+## Addendum — 24 Nov 2026 ~02:42 WIB (edit/hapus transaksi + riwayat perubahan)
+
+### 12. Edit + hapus transaksi (Mattin: "di transaksi juga harus ada fitur hapus atau edit")
+- Tiap baris transaksi di `/transactions` kini punya tombol **Edit** dan
+  **Hapus** (di samping tombol Reimburse yang sudah ada).
+  - **Edit: admin + management.** Membuka form ubah inline (card "Ubah
+    transaksi" di atas daftar, field sama seperti form tambah: brand,
+    channel, jenis, tanggal, keterangan, kategori, jumlah, metode, ref,
+    catatan, Status Bayar). Validasi tetap: keterangan + tanggal wajib,
+    jumlah harus > 0. Setelah simpan, daftar dimuat ulang + pesan
+    konfirmasi singkat.
+  - **Hapus: admin SAJA** (management tidak melihat tombolnya). Dialog
+    konfirmasi menyebut keterangan + jumlah + tanggal sebelum menghapus.
+- **Pembayaran hutang (transaksi dengan `liability_id`) — aturan khusus:**
+  - Hutangnya TIDAK bisa diganti di form edit, dan jenis dikunci
+    "Pengeluaran" — yang boleh berubah hanya nominal/keterangan/dll.
+  - Edit jumlah: sisa hutang disesuaikan selisihnya —
+    `sisa baru = sisa sekarang + jumlah lama − jumlah baru` (floor 0).
+    Bila sisa baru 0, status hutang jadi `lunas`; bila tadinya `lunas`
+    dan sisa jadi > 0, status kembali `aktif`. Edit DITOLAK dengan pesan
+    jelas bila jumlah baru membuat sisa negatif (melebihi
+    `sisa + jumlah lama`) atau membuat sisa melebihi total hutang awal.
+  - Hapus pembayaran hutang: jumlah yang dibayar DIKEMBALIKAN ke
+    `remaining_amount` (dibatasi total hutang awal); bila tadinya `lunas`,
+    status kembali `aktif`. Hapus transaksi biasa hanya menghapus barisnya.
+  - Urutan di kode: transaksi dihapus/diperbarui dulu, baru hutang
+    disesuaikan; bila update hutang gagal, pesan memperingatkan untuk
+    memperbaiki manual di halaman Hutang (pola yang sama seperti tambah
+    transaksi).
+- Catatan: tombol "Reimburse" / "Batalkan reimburse" yang lama TIDAK
+  diaudit (bukan bagian dari perubahan ini) — hanya Edit dan Hapus yang
+  menulis audit_log.
+
+### 13. Audit log + halaman Riwayat (Mattin: "nanti ada history page siapa yg hapus/edit")
+- Tabel baru **`public.audit_log`** — satu baris per edit/delete transaksi:
+  `id`, `actor_id` (id Auth user), `actor_name`, `actor_email`,
+  `action` (`edit` | `delete`), `table_name` (selalu `transactions`),
+  `record_id`, `record_label` (keterangan transaksi), `old_values` jsonb
+  (snapshot lengkap sebelum diubah), `new_values` jsonb (snapshot sesudah;
+  null untuk delete), `created_at`. Baris audit TIDAK ikut terhapus saat
+  transaksinya dihapus — riwayatnya tetap ada.
+- RLS: baca admin + management saja; tulis (insert) admin + management.
+  Insert dilakukan dari app dengan sesi user yang login, jadi tidak perlu
+  policy authenticated umum.
+- Halaman baru **`/history` ("Riwayat Perubahan")** — admin + management
+  saja (peran lain melihat AccessDenied). Tabel entri terbaru dulu: waktu
+  (WIB), nama + email pelaku, badge Ubah (biru) / Hapus (merah), label
+  transaksi. Untuk edit ditampilkan field yang berubah saja, mis.
+  "Jumlah: Rp100.000 → Rp120.000"; untuk hapus ditampilkan isi baris yang
+  dihapus (keterangan, jumlah, tanggal, jenis, brand). Filter: aksi
+  (Semua/Ubah/Hapus) + cari teks (nama pelaku / keterangan). Paginasi: 100
+  entri terbaru, tombol "Muat lebih".
+- Menu **"Riwayat"** ditambahkan di sidebar, tepat setelah Transaksi,
+  hanya terlihat untuk admin + management (nav mobile ikut otomatis).
+- Setiap edit/delete SELALU mencoba menulis satu baris audit_log (actor
+  dari profil yang login: `full_name` + email). Bila insert audit gagal,
+  edit/delete tetap selesai TAPI pesan menampilkan peringatan bahwa
+  riwayat tidak tercatat — tidak pernah diam-diam dilewatkan.
+
+### Audit log DDL — merge into final-setup.sql
+DDL di bawah ini SUDAH ditambahkan ke `supabase/schema.sql` (idempotent).
+File `supabase/final-setup.sql` sedang dibangun agen lain — gabungkan
+snippet ini ke sana (bagian skema), JANGAN jalankan file lama secara
+terpisah.
+
+```sql
+-- ---------- Audit log — riwayat ubah/hapus transaksi (24 Nov 2026) ----------
+create table if not exists public.audit_log (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid,
+  actor_name text,
+  actor_email text,
+  action text not null check (action in ('edit', 'delete')),
+  table_name text not null default 'transactions',
+  record_id uuid,
+  record_label text,
+  old_values jsonb,
+  new_values jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_audit_log_created on public.audit_log (created_at desc);
+create index if not exists idx_audit_log_record on public.audit_log (table_name, record_id);
+alter table public.audit_log enable row level security;
+drop policy if exists "audit_log read" on public.audit_log;
+create policy "audit_log read" on public.audit_log for select using (public.current_user_role() in ('admin', 'management'));
+drop policy if exists "audit_log write" on public.audit_log;
+create policy "audit_log write" on public.audit_log for insert with check (public.current_user_role() in ('admin', 'management'));
+```
+
+## Addendum — 24 Nov 2026 ~02:42 WIB (SATU file SQL final: final-setup.sql)
+
+Mattin: "gausah harus urutan jalanin sql bisa ga — bikin 1 script final setiap revisi."
+
+Mulai sekarang **hanya `supabase/final-setup.sql` yang dijalankan** (sekali di
+Supabase SQL Editor, satu transaksi `begin; ... commit;`, aman di-run ulang).
+File-file lama — `schema.sql`, `seed.sql`, `dedupe-duplicates.sql`,
+`seed-latest-2026-11-24.sql`, `migration-dividend-payouts.sql`,
+`seed-wa-2026-11-24.sql` — **JANGAN dijalankan lagi**; isinya sudah digabung
+di `final-setup.sql`. Setiap revisi SQL ke depan cukup update file itu.
+
+Isi `final-setup.sql` (§1–§6):
+1. **SKEMA** (schema.sql): semua tabel + kolom baru + RLS + view.
+2. **DEDUPE** (dedupe-duplicates.sql): hapus duplikat seed 2x.
+3. **SEED** (seed.sql): data awal Nov 2026 + fee split 8 penerima ikut sheet.
+4. **SEED-LATEST** (seed-latest-2026-11-24.sql): Afr + 17 income PO.
+5. **MIGRASI** (migration-dividend-payouts.sql): dividend_payouts + kolom
+   bayar-hutang + perbaikan FK payslips.
+6. **SEED-WA TERKOREKSI** (seed-wa-2026-11-24.sql): 9 expense + 1 income
+   Mayar; 2 income double DIHAPUS (lihat di bawah).
+
+Perbaikan yang masuk di file final (vs file-file lama):
+- Urutan `CREATE TABLE` diperbaiki (transactions dibuat SETELAH liabilities;
+  `liability_id` via ALTER) — schema.sql lama gagal di database baru karena
+  FK ke tabel yang belum ada.
+- Semua policy RLS `DROP POLICY IF EXISTS` dulu — schema.sql lama punya loop
+  policy modal/pajak yang tidak idempotent (run kedua error).
+- Insert customers / capital_contributions / taxes pakai guard `NOT EXISTS`
+  (seed.sql lama pakai `ON CONFLICT DO NOTHING` tanpa unique constraint,
+  jadi run ulang tetap menduplikat).
+
+Aturan double — withdraw BUKAN income (Mattin 24 Nov 02:40–02:41): NUSA
+Rp535.000 (withdraw Clicky) dan Penarikan Shopee Rp355.772 TIDAK di-insert
+sebagai income (penjualannya sudah tercatat di PO list) dan DIHAPUS dari DB
+bila sudah terlanjur masuk (§6a, 2 DELETE persis). Fee penarikannya tetap
+expense (admin withdraw 5.000, potongan Shopee 3.000). Mayar Rp212.387 tetap
+masuk sebagai income tapi ditandai BELUM TERKONFIRMASI — tanya Mattin apakah
+itu juga withdraw dari penjualan tercatat.
+
+Rekonsiliasi setelah dijalankan (WhereIsIt, Nov 2026): income Rp4.391.387,
+pengeluaran terhitung Rp2.165.738, belum reimburse Rp605.423, saldo
+Rp2.225.649; aset 3 baris (Rp16.161.043), hutang 1 baris (Rp5.380.000);
+transaksi Nov 26 income + 48 expense = 74 baris. Semua angka dihitung ulang
+dari isi file (parse + jumlah per blok) dan cocok.
+
+Koreksi 24 Nov ~02:52: tabel `audit_log` SUDAH digabung ke `final-setup.sql`
+(tabel + index di §1 setelah dividend_payouts, RLS di akhir bagian RLS) —
+file final kini 1.281 baris, begin/commit tetap 1 pasang. Jadi sekali jalan
+`final-setup.sql`, audit log ikut terbentuk dan tombol Edit/Hapus bisa
+menulis riwayat. File-file SQL lama tetap JANGAN dijalankan lagi.

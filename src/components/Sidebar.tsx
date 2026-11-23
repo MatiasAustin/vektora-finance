@@ -13,6 +13,7 @@ interface NavItem {
 export const NAV: NavItem[] = [
   { href: "/", label: "Dashboard", roles: ["admin", "management", "komisaris", "investor", "karyawan"] },
   { href: "/transactions", label: "Transaksi", roles: ["admin", "management", "komisaris", "investor"] },
+  { href: "/history", label: "Riwayat", roles: ["admin", "management"] },
   { href: "/assets", label: "Aset & Investasi", roles: ["admin", "management", "komisaris", "investor"] },
   { href: "/liabilities", label: "Hutang", roles: ["admin", "management", "komisaris", "investor"] },
   { href: "/employees", label: "Karyawan & Gaji", roles: ["admin", "management"] },

@@ -299,6 +299,25 @@ export interface DividendPayout {
   brands?: { name: string } | null;
 }
 
+// ---------- Audit log — riwayat ubah/hapus transaksi (24 Nov 2026) ----------
+// Setiap edit/delete transaksi menulis satu baris di sini (actor = profil
+// yang login). Dibaca di halaman /history (admin + management saja).
+export type AuditAction = "edit" | "delete";
+
+export interface AuditLogRow {
+  id: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  actor_email: string | null;
+  action: AuditAction;
+  table_name: string;
+  record_id: string | null;
+  record_label: string | null;
+  old_values: Record<string, unknown> | null;
+  new_values: Record<string, unknown> | null;
+  created_at: string;
+}
+
 // ---------- Modal & pajak ----------
 export interface CapitalContribution {
   id: string;

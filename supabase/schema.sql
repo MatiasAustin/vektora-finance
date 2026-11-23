@@ -488,3 +488,33 @@ create policy "payslips read" on public.payslips for select using (
 );
 drop policy if exists "payslips write" on public.payslips;
 create policy "payslips write" on public.payslips for all using (public.current_user_role() in ('admin', 'management'));
+
+-- ---------- Audit log — riwayat ubah/hapus transaksi (24 Nov 2026) ----------
+-- Satu baris per edit/delete transaksi di app (actor = profil yang login).
+-- Dibaca di halaman /history (admin + management saja). Tabel ini TIDAK
+-- dihapus bareng transaksinya: bila transaksi dihapus, baris auditnya
+-- tetap ada (record_id menunjuk id yang sudah tidak ada).
+create table if not exists public.audit_log (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid,
+  actor_name text,
+  actor_email text,
+  action text not null check (action in ('edit', 'delete')),
+  table_name text not null default 'transactions',
+  record_id uuid,
+  record_label text,
+  old_values jsonb,
+  new_values jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_audit_log_created on public.audit_log (created_at desc);
+create index if not exists idx_audit_log_record on public.audit_log (table_name, record_id);
+alter table public.audit_log enable row level security;
+-- Baca: admin + management saja (komisaris/investor/karyawan TIDAK).
+drop policy if exists "audit_log read" on public.audit_log;
+create policy "audit_log read" on public.audit_log for select using (public.current_user_role() in ('admin', 'management'));
+-- Tulis: admin + management (hanya mereka yang boleh edit/hapus transaksi,
+-- jadi hanya mereka yang perlu insert audit). Insert dilakukan dari app
+-- dengan sesi user yang login — tidak perlu policy authenticated umum.
+drop policy if exists "audit_log write" on public.audit_log;
+create policy "audit_log write" on public.audit_log for insert with check (public.current_user_role() in ('admin', 'management'));

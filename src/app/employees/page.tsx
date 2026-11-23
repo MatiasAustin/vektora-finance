@@ -17,7 +17,10 @@ export default function EmployeesPage() {
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [brandId, setBrandId] = useState("all");
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ brand_id: "", name: "", role: "", team: "", monthly_salary: "", is_fixed_cost: true, is_management: false });
+  // Sumber gaji: pilih SATU saja (radio) — OPEX atau Management Fee,
+  // tidak bisa dua-duanya. Dipetakan ke is_fixed_cost / is_management
+  // saat simpan (Mattin, 24 Nov 2026).
+  const [form, setForm] = useState({ brand_id: "", name: "", role: "", team: "", monthly_salary: "", salary_source: "opex" });
 
   async function load() {
     const sb = getSupabase();
@@ -37,7 +40,7 @@ export default function EmployeesPage() {
     if (!editable) return;
     const sb = getSupabase();
     if (!sb) return;
-    await sb.from("employees").insert({ brand_id: form.brand_id, name: form.name, role: form.role || null, team: form.team || null, monthly_salary: Number(form.monthly_salary), is_fixed_cost: form.is_fixed_cost, is_management: form.is_management, is_active: true });
+    await sb.from("employees").insert({ brand_id: form.brand_id, name: form.name, role: form.role || null, team: form.team || null, monthly_salary: Number(form.monthly_salary), is_fixed_cost: form.salary_source === "opex", is_management: form.salary_source === "fee", is_active: true });
     setForm((f) => ({ ...f, name: "", role: "", team: "", monthly_salary: "" }));
     load();
   }
@@ -71,8 +74,13 @@ export default function EmployeesPage() {
           <input value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} placeholder="Peran (mis. Operator 3D Print)" className="rounded-xl border px-3 py-2" />
           <input value={form.team} onChange={(e) => setForm({ ...form, team: e.target.value })} placeholder="Tim (mis. Produksi WhereIsIt)" className="rounded-xl border px-3 py-2" />
           <input type="number" min="0" value={form.monthly_salary} onChange={(e) => setForm({ ...form, monthly_salary: e.target.value })} placeholder="Gaji / bulan (Rp)" className="rounded-xl border px-3 py-2" required />
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.is_fixed_cost} onChange={(e) => setForm({ ...form, is_fixed_cost: e.target.checked })} /> Fixed cost (masuk OPEX)</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.is_management} onChange={(e) => setForm({ ...form, is_management: e.target.checked })} /> Manajemen (dari Management Fee)</label>
+          <fieldset className="rounded-xl border px-3 py-2 sm:col-span-2">
+            <legend className="px-1 text-xs font-semibold text-slate-500">Sumber gaji — pilih satu</legend>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <label className="flex items-center gap-2"><input type="radio" name="salary_source" value="opex" checked={form.salary_source === "opex"} onChange={() => setForm({ ...form, salary_source: "opex" })} /> OPEX (fixed cost)</label>
+              <label className="flex items-center gap-2"><input type="radio" name="salary_source" value="fee" checked={form.salary_source === "fee"} onChange={() => setForm({ ...form, salary_source: "fee" })} /> Management Fee</label>
+            </div>
+          </fieldset>
           <button className="rounded-xl bg-vektora-500 px-4 py-2 font-semibold text-white">Simpan</button>
         </form>
       </Card>) : (<ReadOnlyNotice role={role} />)}

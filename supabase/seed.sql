@@ -4,9 +4,10 @@
 -- (Income & Expend 2026 + Laporan Keuangan WhereIsIt, per 18 Nov 2026).
 -- Jalankan SETELAH schema.sql. AMAN di-run ulang (24 Nov 2026):
 -- semua blok insert pakai guard NOT EXISTS, jadi tidak menduplikat
--- data bila di-run 2x. Perbaikan 24 Nov 01:59: kolom dari VALUES
--- harus di-cast eksplisit (brand_id::uuid, tanggal::date) — tanpa
--- cast, Postgres error 42883 "operator does not exist: uuid = text".
+-- data bila di-run 2x. Perbaikan 24 Nov 02:02: kolom dari VALUES
+-- harus di-cast eksplisit (brand_id::uuid, tanggal::date,
+-- kind::txn_kind, payment_status::payment_status, paid_by::paid_by)
+-- — tanpa cast, Postgres error 42883 "operator does not exist".
 -- Moonimo di-seed kosong (brand saja, belum ada transaksi).
 -- Gaji karyawan TIDAK di-seed: belum ada angka terkonfirmasi — isi di
 -- halaman /employees. Jangan tebak gaji.
@@ -64,7 +65,7 @@ where c.brand_id = '11111111-1111-1111-1111-111111111111' and c.slug = 'direct-t
 -- Idempotent (24 Nov 2026): guard NOT EXISTS per baris — seed.sql aman
 -- di-run ulang (mis. setelah akun Auth dibuat), tidak menduplikat data.
 insert into public.transactions (brand_id, kind, txn_date, description, category, amount, payment_method, notes, payment_status)
-select v.brand_id::uuid, v.kind, v.txn_date::date, v.description, v.category, v.amount, v.payment_method, v.notes, v.payment_status
+select v.brand_id::uuid, v.kind::txn_kind, v.txn_date::date, v.description, v.category, v.amount, v.payment_method, v.notes, v.payment_status::payment_status
 from (values
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-02', 'Spon', 'Operasional', 12000, 'Tunai', null, 'sudah_dibayar'),
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-03', 'Acrylic Marker', 'Operasional', 43123, 'Tunai', null, 'sudah_dibayar'),
@@ -92,13 +93,13 @@ from (values
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-17', 'Hosting / Domain Hostinger', 'Operasional', 23545, 'QRIS', 'Xendit — domain, bayar sebelum 24/11/2026', 'sudah_dibayar'),
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-17', 'Bensin Mio — SPBU Jendral 240 Karawang', 'Operasional', 20000, 'QRIS', 'blu QRIS 21:41', 'sudah_dibayar')
 ) as v(brand_id, kind, txn_date, description, category, amount, payment_method, notes, payment_status)
-where not exists (select 1 from public.transactions t where t.brand_id = v.brand_id::uuid and t.kind = v.kind and t.txn_date = v.txn_date::date and t.description = v.description and t.amount = v.amount);
+where not exists (select 1 from public.transactions t where t.brand_id = v.brand_id::uuid and t.kind = v.kind::txn_kind and t.txn_date = v.txn_date::date and t.description = v.description and t.amount = v.amount);
 
 -- ---------- Pengeluaran BELUM REIMBURSE (12 item Meeting Calon BA, Rp437.700) ----------
 -- Satu-satunya Belum reimburse di Nov 2026 — sumber: Notion
 -- "Pengeluaran Operasional - Meeting Calon BA - 9 November 2026".
 insert into public.transactions (brand_id, kind, txn_date, description, category, amount, payment_method, notes, payment_status)
-select v.brand_id::uuid, v.kind, v.txn_date::date, v.description, v.category, v.amount, v.payment_method, v.notes, v.payment_status
+select v.brand_id::uuid, v.kind::txn_kind, v.txn_date::date, v.description, v.category, v.amount, v.payment_method, v.notes, v.payment_status::payment_status
 from (values
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-09', 'Tiket kereta — Meeting Calon BA', 'Transportasi', 6000, null, 'Notion Meeting Calon BA 9 Nov', 'belum_reimburse'),
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-09', 'Le Minerale — Meeting Calon BA', 'Makan/minum', 14000, null, 'Notion Meeting Calon BA 9 Nov', 'belum_reimburse'),
@@ -113,7 +114,7 @@ from (values
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-09', 'Makan malam — Meeting Calon BA', 'Makan/minum', 38700, null, 'Notion Meeting Calon BA 9 Nov', 'belum_reimburse'),
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-09', 'Trial print label — Meeting Calon BA', 'Produksi/print test', 20000, null, 'Notion Meeting Calon BA 9 Nov', 'belum_reimburse')
 ) as v(brand_id, kind, txn_date, description, category, amount, payment_method, notes, payment_status)
-where not exists (select 1 from public.transactions t where t.brand_id = v.brand_id::uuid and t.kind = v.kind and t.txn_date = v.txn_date::date and t.description = v.description and t.amount = v.amount);
+where not exists (select 1 from public.transactions t where t.brand_id = v.brand_id::uuid and t.kind = v.kind::txn_kind and t.txn_date = v.txn_date::date and t.description = v.description and t.amount = v.amount);
 
 -- ---------- Aset investasi (total Rp16.161.043) ----------
 insert into public.assets (brand_id, name, category, qty, unit_price, total_price, purchased_at, condition, notes)
@@ -127,7 +128,7 @@ where not exists (select 1 from public.assets a where a.brand_id = v.brand_id::u
 
 -- ---------- Hutang (hanya hutang perusahaan; PETG TIDAK masuk sini) ----------
 insert into public.liabilities (brand_id, creditor, amount, remaining_amount, due_date, monthly_installment, months, paid_by, status, notes)
-select v.brand_id::uuid, v.creditor, v.amount, v.remaining_amount, v.due_date::date, v.monthly_installment, v.months, v.paid_by, v.status, v.notes
+select v.brand_id::uuid, v.creditor, v.amount, v.remaining_amount, v.due_date::date, v.monthly_installment, v.months, v.paid_by::paid_by, v.status, v.notes
 from (values
   ('11111111-1111-1111-1111-111111111111', 'Febri', 5380000, 5380000, '2027-11-16', 448333, 12, 'company', 'aktif',
    'Pinjaman dari Pak Febri untuk Bambulab P2S Combo — BUKAN investasi/modal saham, terpisah dari penyertaan modal Febri; amortisasi 12 bln; transfer Rp5.380.000 ke Joy Abigail 17/11')

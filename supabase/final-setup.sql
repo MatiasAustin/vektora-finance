@@ -23,19 +23,19 @@
 --   4. SEED-LATEST (seed-latest-2026-11-24.sql): Afr + 17 income PO.
 --   5. MIGRASI (migration-dividend-payouts.sql): dividend_payouts
 --      + kolom bayar-hutang + perbaikan FK payslips.
---   6. SEED-WA TERKOREKSI (seed-wa-2026-11-24.sql): 9 expense +
---      1 income Mayar; 2 income double DIHAPUS (lihat §6).
+--   6. SEED-WA TERKOREKSI (seed-wa-2026-11-24.sql): 9 expense,
+--      0 income; 2 income double + 1 dana pribadi DIHAPUS (lihat §6).
 --
 -- REKONSILIASI SETELAH DIJALANKAN (WhereIsIt, Nov 2026):
---   Income total               = Rp4.391.387  (4.179.000 + 212.387 Mayar)
+--   Income total               = Rp4.179.000
 --   Pengeluaran terhitung      = Rp2.165.738
 --   Belum reimburse            = Rp605.423
---   Saldo                      = Rp2.225.649
+--   Saldo                      = Rp2.013.262
 --   Aset                       = 3 baris (total Rp16.161.043)
 --   Hutang                     = 1 baris (Febri Rp5.380.000)
---   Transaksi Nov 2026         = 26 income + 48 expense = 74 baris
--- Cocok dengan sheet November setelah koreksi double 24 Nov 2026:
---   income sheet Rp1.832.387 — selisih Rp2.559.000 adalah 17 order
+--   Transaksi Nov 2026         = 25 income + 48 expense = 73 baris
+-- Cocok dengan sheet November setelah koreksi 24 Nov 2026:
+--   income sheet Rp1.620.000 — selisih Rp2.559.000 adalah 17 order
 --   PO yang hanya ada di app/PO, belum masuk sheet.
 --
 -- PERBEDAAN DARI FILE LAMA (diperbaiki di sini):
@@ -1160,6 +1160,10 @@ from public.brands b;
 --   Rp5.000 dan potongan Shopee Rp3.000 (lihat 6d).
 --
 -- YANG SENGAJA TIDAK DI-INSERT (jangan ditebak):
+--   - Dana masuk Mayar Rp212.387 (19 Nov): uang PRIBADI Mattin yang
+--     nyangkut di bluBisnis — BUKAN uang PT, jangan masuk pembukuan
+--     (Mattin 24 Nov 2026 02:54). Dihapus dari sheet + file ini;
+--     kalau sudah terlanjur masuk DB, DELETE di 6a mengeluarkannya.
 --   - Transfer antar rekening sendiri (bluBisnis -> bluGether
 --     Rp640.069, bluBisnis -> bluAccount Rp212.000, bluGether ->
 --     Matias Rp121.691 rembes, Matias -> Januar Rp280.000):
@@ -1176,8 +1180,8 @@ from public.brands b;
 --     belum terjelaskan — jangan ditebak.
 -- ============================================================
 
--- ================= 6a. CLEANUP: hapus 2 income double yang sudah terlanjur masuk =================
--- Mattin sudah sempat menjalankan seed-wa lama, jadi kedua baris ini
+-- ================= 6a. CLEANUP: hapus 3 baris yang sudah terlanjur masuk =================
+-- Mattin sudah sempat menjalankan seed-wa lama, jadi baris-baris ini
 -- SUDAH ada di DB live. DELETE di sini persis (kind + tanggal +
 -- deskripsi + jumlah) — JANGAN hapus baris lain. Berjalan SEBELUM
 -- insert di bawah supaya tidak bentrok. Bila barisnya tidak ada
@@ -1194,6 +1198,13 @@ where kind = 'income'
   and description = 'Penarikan Shopee'
   and amount = 355772;
 
+-- Dana pribadi Mattin (bukan uang PT) — lihat catatan di atas.
+delete from public.transactions
+where kind = 'income'
+  and txn_date = '2026-11-19'::date
+  and description = 'Dana masuk Mayar'
+  and amount = 212387;
+
 -- ================= 6b. Channel baru: Mayar =================
 insert into public.channels (brand_id, name, slug)
 select '11111111-1111-1111-1111-111111111111', c.name, c.slug
@@ -1203,24 +1214,12 @@ where not exists (
   where ch.brand_id = '11111111-1111-1111-1111-111111111111' and ch.slug = c.slug
 );
 
--- ================= 6c. Income baru — HANYA Mayar Rp212.387 =================
--- BELUM TERKONFIRMASI — tanya Mattin apakah ini juga withdraw dari
--- penjualan yang sudah tercatat (seperti NUSA/Shopee di atas).
--- Sampai ada jawaban, baris ini TETAP masuk sebagai income.
-insert into public.transactions (brand_id, channel_id, kind, txn_date, description, category, amount, payment_method, ref, notes, payment_status)
-select '11111111-1111-1111-1111-111111111111', c.id, 'income', '2026-11-19'::date,
-  'Dana masuk Mayar', 'Penjualan Online', 212387, 'Transfer', null,
-  'WA FINANCE 19/11 17:40 — dana masuk Mayar di bluBisnis. BELUM TERKONFIRMASI — tanya Mattin apakah ini juga withdraw dari penjualan yang sudah tercatat.',
-  'sudah_dibayar'
-from public.channels c
-where c.brand_id = '11111111-1111-1111-1111-111111111111' and c.slug = 'mayar'
-  and not exists (
-    select 1 from public.transactions t
-    where t.kind = 'income'
-      and t.txn_date = '2026-11-19'::date
-      and t.description = 'Dana masuk Mayar'
-      and t.amount = 212387
-  );
+-- ================= 6c. Income baru — TIDAK ADA =================
+-- Dulu di sini ada satu income "Dana masuk Mayar" Rp212.387 — DIHAPUS
+-- 24 Nov 2026 02:54: itu uang PRIBADI Mattin yang nyangkut di bluBisnis,
+-- bukan uang PT (Mattin). Jangan masukkan lagi sebagai income.
+-- Channel 'mayar' di 6b tetap dibuat (Mayar adalah payment channel
+-- yang sah dipakai PT nanti) — yang dihapus hanya baris income ini.
 
 -- ================= 6d. Pengeluaran baru (9 baris, Rp962.856) =================
 insert into public.transactions (brand_id, kind, txn_date, description, category, amount, payment_method, ref, notes, payment_status)
@@ -1251,15 +1250,15 @@ commit;
 -- ============================================================
 -- select * from public.v_brand_monthly_summary
 --   where brand_id = '11111111-1111-1111-1111-111111111111' and month = '2026-11';
--- Harus: income 4391387, expense_counted 2165738,
---        belum_reimburse 605423, net 2225649.
+-- Harus: income 4179000, expense_counted 2165738,
+--        belum_reimburse 605423, net 2013262.
 --
 -- select count(*) filter (where kind = 'income') as income_rows,
 --        count(*) filter (where kind = 'expense') as expense_rows
 --   from public.transactions
 --   where brand_id = '11111111-1111-1111-1111-111111111111'
 --     and txn_date >= '2026-11-01' and txn_date < '2026-12-01';
--- Harus: income_rows 26, expense_rows 48.
+-- Harus: income_rows 25, expense_rows 48.
 --
 -- select count(*) as assets_rows, sum(total_price) as assets_total
 --   from public.assets
@@ -1272,10 +1271,10 @@ commit;
 -- Harus: liab_rows 1, liab_total 5380000.
 --
 -- select description, amount from public.transactions
---   where description in ('Dana masuk NUSA Satu Inti Artha (withdraw, revenue 540.000)', 'Penarikan Shopee');
--- Harus: 0 baris (kedua income double sudah terhapus).
+--   where description in ('Dana masuk NUSA Satu Inti Artha (withdraw, revenue 540.000)', 'Penarikan Shopee', 'Dana masuk Mayar');
+-- Harus: 0 baris (dua income double + dana pribadi sudah terhapus).
 --
 -- select * from public.v_investor_summary
 --   where brand_id = '11111111-1111-1111-1111-111111111111';
--- Harus: income_total 4391387, expense_counted_total 2165738,
+-- Harus: income_total 4179000, expense_counted_total 2165738,
 --        assets_total 16161043, company_debt 5380000.

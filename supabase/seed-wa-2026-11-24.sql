@@ -1,5 +1,9 @@
 -- ============================================================
--- VEKTORA FINANCE — seed-wa-2026-11-24.sql
+-- VEKTORA FINANCE — seed-wa-2026-11-24.sql  [SUPERSEDED]
+-- JANGAN DIJALANKAN LAGI — isinya sudah ada di final-setup.sql
+-- (satu-satunya file SQL). Revisi 24 Nov 02:54: baris income
+-- "Dana masuk Mayar" Rp212.387 DIHAPUS dari file ini — itu uang
+-- PRIBADI Mattin yang nyangkut di bluBisnis, bukan uang PT.
 -- Transaksi WhereIsIt dari WA FINANCE + PURCHASING, 18-23 Nov 2026.
 --
 -- CARA PAKAI: jalankan di Supabase SQL Editor SETELAH schema.sql,
@@ -57,23 +61,11 @@ where not exists (
   where ch.brand_id = '11111111-1111-1111-1111-111111111111' and ch.slug = c.slug
 );
 
--- ================= 1. Income baru (3 baris, Rp1.103.159) =================
-insert into public.transactions (brand_id, channel_id, kind, txn_date, description, category, amount, payment_method, ref, notes, payment_status)
-select '11111111-1111-1111-1111-111111111111', c.id, 'income', d.txn_date, d.description, d.category, d.amount, d.payment_method, d.ref, d.notes, 'sudah_dibayar'
-from public.channels c,
-  (values
-    ('2026-11-19'::date, 'Dana masuk Mayar', 'Penjualan Online', 212387, 'mayar', null, 'Transfer', 'WA FINANCE 19/11 17:40 — dana masuk Mayar di bluBisnis.'),
-    ('2026-11-19'::date, 'Dana masuk NUSA Satu Inti Artha (withdraw, revenue 540.000)', 'Penjualan Online', 535000, 'mayar', null, 'Transfer', 'WA FINANCE 19/11 16:33 — Total Revenue 540.000, Withdrawn 535.000 (admin withdraw 5.000, lihat baris expense).'),
-    ('2026-11-21'::date, 'Penarikan Shopee', 'Penjualan Online', 355772, 'shopee', null, 'Transfer', 'WA FINANCE 21/11 20:07 — fee penarikan Rp3.000 (baris expense terpisah); Rp5.000 masih di Januar (pending, bukan expense); selisih Rp1.772 belum terjelaskan (net 352.772 vs diterima 346.000 + 5.000 ngendap = 351.000).')
-  ) as d(txn_date, description, category, amount, channel_slug, ref, payment_method, notes)
-where c.brand_id = '11111111-1111-1111-1111-111111111111' and c.slug = lower(d.channel_slug)
-  and not exists (
-    select 1 from public.transactions t
-    where t.kind = 'income'
-      and t.txn_date = d.txn_date
-      and t.description = d.description
-      and t.amount = d.amount
-  );
+-- ================= 1. Income baru — TIDAK ADA =================
+-- Dulu 3 baris (Rp1.103.159): NUSA 535.000 + Shopee 355.772 adalah
+-- withdraw (double, penjualan sudah di PO list) dan Mayar 212.387
+-- adalah uang PRIBADI Mattin — ketiganya DIHAPUS, jangan di-insert.
+-- (Tidak ada statement INSERT income di file ini lagi.)
 
 -- ================= 2. Pengeluaran baru (9 baris, Rp962.856) =================
 insert into public.transactions (brand_id, kind, txn_date, description, category, amount, payment_method, ref, notes, payment_status)

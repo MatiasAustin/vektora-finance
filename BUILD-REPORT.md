@@ -742,3 +742,17 @@ Koreksi 24 Nov ~02:52: tabel `audit_log` SUDAH digabung ke `final-setup.sql`
 file final kini 1.281 baris, begin/commit tetap 1 pasang. Jadi sekali jalan
 `final-setup.sql`, audit log ikut terbentuk dan tombol Edit/Hapus bisa
 menulis riwayat. File-file SQL lama tetap JANGAN dijalankan lagi.
+
+## Koreksi 24 Nov ~02:54 — Mayar Rp212.387 dana pribadi, bukan income PT
+Mattin: "mayar uang pribadi matias yg nyangkut, ga masuk di data keuangan pt ini".
+- Dihapus dari sheet November baris 14 (income sheet jadi Rp1.620.000,
+  saldo sheet -Rp545.738 — negatif karena 17 order PO Rp2.559.000 belum
+  masuk sheet, hanya di app/PO).
+- Dihapus dari antrean queue + dari `final-setup.sql` (§6c dihapus total,
+  ditambah DELETE cleanup di §6a bila sudah terlanjur masuk DB) dan dari
+  `seed-wa-2026-11-24.sql` (file lama itu kini ditandai SUPERSEDED).
+- Rekonsiliasi baru setelah jalanin `final-setup.sql`: income Rp4.179.000,
+  pengeluaran Rp2.165.738, belum reimburse Rp605.423, saldo Rp2.013.262;
+  transaksi Nov 25 income + 48 expense = 73 baris.
+- Channel 'mayar' tetap dibuat di §6b (payment channel sah untuk PT nanti)
+  — yang dihapus hanya baris incomenya.

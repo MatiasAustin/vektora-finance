@@ -1,5 +1,8 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createServerClient as createSsrClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  createBrowserClient,
+  createServerClient as createSsrClient,
+} from "@supabase/ssr";
 import type { NextRequest, NextResponse } from "next/server";
 
 // Supabase sekarang pakai key baru: Publishable (= anon lama) dan Secret
@@ -15,10 +18,17 @@ export const isSupabaseConfigured =
 
 let client: SupabaseClient | null = null;
 
+// PENTING: pakai createBrowserClient (@supabase/ssr), BUKAN createClient
+// biasa. createClient menyimpan sesi di localStorage, sedangkan
+// middleware (server) membaca sesi dari cookie — jadi login yang
+// berhasil pun langsung mental balik ke /login. createBrowserClient
+// menyimpan sesi di cookie, sehingga middleware bisa melihat user
+// yang sudah login. (Bug ini yang bikin login 24 Nov 2026 tidak
+// bisa masuk walau email/kata sandi benar.)
 export function getSupabase(): SupabaseClient | null {
   if (!isSupabaseConfigured) return null;
   if (!client) {
-    client = createClient(
+    client = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL as string,
       supabasePublishableKey
     );

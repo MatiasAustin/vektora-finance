@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-slate-100 text-slate-900 antialiased;
+}
+
+/* Cetak slip gaji: hanya slip yang tercetak, sidebar/header disembunyikan. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .payslip-print,
+  .payslip-print * {
+    visibility: visible;
+  }
+  .payslip-print {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    box-shadow: none !important;
+  }
+}

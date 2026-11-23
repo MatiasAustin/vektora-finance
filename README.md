@@ -159,10 +159,15 @@ Rp280.000; sisa Rp202.604 di Januar. Moonimo di-seed kosong (brand saja).
 1. Buat project baru di https://supabase.com/dashboard.
 2. SQL Editor → jalankan `supabase/schema.sql` (semua tabel, enum, index, view, RLS).
 3. SQL Editor → jalankan `supabase/seed.sql`.
-4. Settings → API → salin URL + anon key.
+4. Settings → API Keys → salin **Publishable key** (`sb_publishable_...`,
+   pengganti anon key) dan **Secret key** (`sb_secret_...`, pengganti
+   service_role key, hanya untuk server). URL project ada di Settings →
+   General → Project URL (`https://<project-ref>.supabase.co`). Key lama
+   (anon/service_role) sudah diganti Supabase dengan format baru ini dan
+   akan pensiun awal 2027 — pakai yang baru saja.
 5. Di repo lokal: `cp .env.example .env.local` lalu isi
-   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-   dan (bila perlu server) `SUPABASE_SERVICE_ROLE_KEY`.
+   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+   dan (bila perlu server) `SUPABASE_SECRET_KEY`.
 6. **Auth (wajib untuk login):** Supabase Dashboard → Authentication → Providers →
    aktifkan **Email**. Lalu Authentication → Users → Add user untuk tiap orang
    (Matias, Januar, Febri, komisaris, Lemuel) dengan email yang sama seperti di
@@ -187,7 +192,7 @@ tidak ada data palsu yang ditampilkan sebagai data live.
 1. Push repo ini ke GitHub (nama disarankan: `vektora-finance`).
 2. Vercel → Add New Project → import repo → Framework: Next.js.
 3. Environment Variables: isi `NEXT_PUBLIC_SUPABASE_URL`,
-   `NEXT_PUBLIC_SUPABASE_ANON_KEY` (dan `SUPABASE_SERVICE_ROLE_KEY` bila dipakai server).
+   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (dan `SUPABASE_SECRET_KEY` bila dipakai server).
 4. Deploy. Setiap push ke `main` akan redeploy otomatis.
 
 ## Yang masih perlu Mattin

@@ -2,9 +2,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createServerClient as createSsrClient } from "@supabase/ssr";
 import type { NextRequest, NextResponse } from "next/server";
 
+// Supabase sekarang pakai key baru: Publishable (= anon lama) dan Secret
+// (= service_role lama). Terima nama env baru dulu, fallback ke nama lama.
+export const supabasePublishableKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  "";
+
 export const isSupabaseConfigured =
   Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
-  Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  Boolean(supabasePublishableKey);
 
 let client: SupabaseClient | null = null;
 
@@ -13,7 +20,7 @@ export function getSupabase(): SupabaseClient | null {
   if (!client) {
     client = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+      supabasePublishableKey
     );
   }
   return client;
@@ -23,7 +30,7 @@ export function getSupabase(): SupabaseClient | null {
 export function createServerSupabase(request: NextRequest, response: NextResponse) {
   return createSsrClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+    supabasePublishableKey,
     {
       cookies: {
         getAll() {

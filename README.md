@@ -82,7 +82,7 @@ Username yang bisa dipakai (sesuai seed.sql):
 | `komisaris-2` | komisaris | `komisaris-2@vektora.id` |
 | `avrina` | management (Avrina, Finance) | `avrina@vektora.id` |
 | `rohimat` | karyawan (sementara — role belum ditentukan) | `rohimat@vektora.id` |
-| `lemuel` | karyawan (Marketing) | `lemuel@vektora.id` |
+| `lemuel` | management (Manager Marketing — gaji dari Management Fee, bukan OPEX) | `lemuel@vektora.id` |
 
 **Cara membuat akun (Mattin yang lakukan):** Supabase Dashboard → Authentication →
 Users → Add user → email = `username@vektora.id` sesuai tabel di atas → centang

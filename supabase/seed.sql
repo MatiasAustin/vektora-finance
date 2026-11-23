@@ -131,9 +131,11 @@ from (values
 ) as v(brand_id, creditor, amount, remaining_amount, due_date, monthly_installment, months, paid_by, status, notes)
 where not exists (select 1 from public.liabilities l where l.brand_id = v.brand_id and l.creditor = v.creditor and l.amount = v.amount and l.due_date = v.due_date);
 
--- ---------- Karyawan: Lemuel (gaji BELUM diisi — 0, jangan ditebak) ----------
+-- ---------- Lemuel: Manager Marketing (gaji BELUM diisi — 0, jangan ditebak) ----------
+-- BUKAN OPEX (Mattin, 24 Nov 2026): is_management=true → gajinya dibayar
+-- dari Management Fee, bukan OPEX. is_fixed_cost=false sekalian.
 insert into public.employees (id, brand_id, name, role, team, monthly_salary, is_fixed_cost, is_management, is_active) values
-  ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'Lemuel', 'Motion / Operasional', 'Produksi WhereIsIt', 0, true, false, true)
+  ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'Lemuel', 'Manager Marketing', 'Marketing', 0, false, true, true)
 on conflict (id) do nothing;
 
 -- ---------- Penyertaan modal (Febri: jumlah BELUM dicatat, jangan ditebak) ----------
@@ -158,7 +160,8 @@ on conflict do nothing;
 -- jadi email teknis ini di aplikasi; email ini tidak perlu dibuka/dipunya.
 -- Matias memakai email Gmail yang sudah dikenal: tiasaustin32@gmail.com.
 -- Avrina = Finance (role management: operasional penuh, tidak ubah fee-split).
--- Lemuel = Marketing (divisi; role app tetap karyawan = slip gaji sendiri).
+-- Lemuel = Manager Marketing (role app management; gaji dari Management
+-- Fee, BUKAN OPEX).
 -- Rohimat: role app BELUM ditentukan Mattin — sementara karyawan (akses
 -- paling kecil); naikkan ke management bila dia memang operasional.
 insert into public.profiles (id, email, full_name, role, brand_ids, employee_id, active)
@@ -172,9 +175,20 @@ join (values
   ('komisaris-2@vektora.id', 'Komisaris 2', 'komisaris', null::uuid[], null::uuid),
   ('avrina@vektora.id', 'Avrina', 'management', null::uuid[], null::uuid),
   ('rohimat@vektora.id', 'Rohimat', 'karyawan', null::uuid[], null::uuid),
-  ('lemuel@vektora.id', 'Lemuel', 'karyawan', ARRAY['11111111-1111-1111-1111-111111111111'::uuid], '33333333-3333-3333-3333-333333333333'::uuid)
+  ('lemuel@vektora.id', 'Lemuel', 'management', ARRAY['11111111-1111-1111-1111-111111111111'::uuid], '33333333-3333-3333-3333-333333333333'::uuid)
 ) as p(email, full_name, role, brand_ids, employee_id) on u.email = p.email
 on conflict (id) do nothing;
+
+-- Koreksi role Lemuel untuk baris yang SUDAH ada (insert di atas pakai
+-- ON CONFLICT DO NOTHING, jadi tanpa UPDATE ini role lama tidak berubah
+-- saat seed.sql di-run ulang). Aman di-run ulang.
+update public.employees
+set role = 'Manager Marketing', team = 'Marketing',
+    is_fixed_cost = false, is_management = true
+where id = '33333333-3333-3333-3333-333333333333';
+update public.profiles
+set role = 'management'
+where email = 'lemuel@vektora.id' and role <> 'management';
 
 -- Alternatif manual (bila email Auth berbeda dari atas): buat user di Auth,
 -- salin UUID-nya, lalu jalankan:

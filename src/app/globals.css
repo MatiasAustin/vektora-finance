@@ -2,8 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   @apply bg-slate-100 text-slate-900 antialiased;
+  overflow-x: hidden;
+}
+
+/* Jangan biarkan konten lebar (angka Rp panjang, URL) mendorong layout. */
+img,
+video {
+  max-width: 100%;
 }
 
 /* Cetak slip gaji: hanya slip yang tercetak, sidebar/header disembunyikan. */

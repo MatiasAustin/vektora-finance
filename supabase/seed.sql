@@ -136,19 +136,26 @@ on conflict do nothing;
 -- blok ini), dengan kata sandi masing-masing. TIDAK ada kata sandi di seed.
 -- Baris profil baru muncul bila user Auth-nya sudah ada (join by email);
 -- bila belum ada, blok ini tidak melakukan apa-apa (aman di-run ulang).
--- Nama komisaris sengaja placeholder (nama asli belum ada di data) dan
--- email @ptvektora.id adalah placeholder — ganti dengan email asli mereka.
+-- Nama komisaris sengaja placeholder (nama asli belum ada di data).
+-- Domain login @vektora.id (Mattin, 24 Nov 2026) — username login diubah
+-- jadi email teknis ini di aplikasi; email ini tidak perlu dibuka/dipunya.
 -- Matias memakai email Gmail yang sudah dikenal: tiasaustin32@gmail.com.
+-- Avrina = Finance (role management: operasional penuh, tidak ubah fee-split).
+-- Lemuel = Marketing (divisi; role app tetap karyawan = slip gaji sendiri).
+-- Rohimat: role app BELUM ditentukan Mattin — sementara karyawan (akses
+-- paling kecil); naikkan ke management bila dia memang operasional.
 insert into public.profiles (id, email, full_name, role, brand_ids, employee_id, active)
 select u.id, u.email, p.full_name, p.role::app_role, p.brand_ids, p.employee_id, true
 from auth.users u
 join (values
   ('tiasaustin32@gmail.com', 'Matias Austin', 'admin', null::uuid[], null::uuid),
-  ('januar@ptvektora.id', 'Januar Amin', 'management', null::uuid[], null::uuid),
-  ('febri@ptvektora.id', 'Febri', 'investor', null::uuid[], null::uuid),
-  ('komisaris-utama@ptvektora.id', 'Komisaris Utama', 'komisaris', null::uuid[], null::uuid),
-  ('komisaris-2@ptvektora.id', 'Komisaris 2', 'komisaris', null::uuid[], null::uuid),
-  ('lemuel@ptvektora.id', 'Lemuel', 'karyawan', ARRAY['11111111-1111-1111-1111-111111111111'::uuid], '33333333-3333-3333-3333-333333333333'::uuid)
+  ('januar@vektora.id', 'Januar Amin', 'management', null::uuid[], null::uuid),
+  ('febri@vektora.id', 'Febri', 'investor', null::uuid[], null::uuid),
+  ('komisaris-utama@vektora.id', 'Komisaris Utama', 'komisaris', null::uuid[], null::uuid),
+  ('komisaris-2@vektora.id', 'Komisaris 2', 'komisaris', null::uuid[], null::uuid),
+  ('avrina@vektora.id', 'Avrina', 'management', null::uuid[], null::uuid),
+  ('rohimat@vektora.id', 'Rohimat', 'karyawan', null::uuid[], null::uuid),
+  ('lemuel@vektora.id', 'Lemuel', 'karyawan', ARRAY['11111111-1111-1111-1111-111111111111'::uuid], '33333333-3333-3333-3333-333333333333'::uuid)
 ) as p(email, full_name, role, brand_ids, employee_id) on u.email = p.email
 on conflict (id) do nothing;
 

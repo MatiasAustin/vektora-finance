@@ -165,7 +165,7 @@ export default function PayslipsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card><p className="text-xs font-semibold uppercase text-slate-500">Total gaji bersih</p><p className="mt-1 text-2xl font-bold">{formatIDR(totals.totalNet)}</p></Card>
         <Card><p className="text-xs font-semibold uppercase text-slate-500">Sudah dibayar (masuk OPEX)</p><p className="mt-1 text-2xl font-bold">{formatIDR(totals.paid)}</p></Card>
         <Card><p className="text-xs font-semibold uppercase text-slate-500">Belum dibayar (tunggakan)</p><p className="mt-1 text-2xl font-bold">{formatIDR(totals.outstanding)}</p></Card>

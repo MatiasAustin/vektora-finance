@@ -50,7 +50,7 @@ export default function AssetsPage() {
       <Card><p className="text-xs font-semibold uppercase text-slate-500">Total nilai aset</p><p className="mt-1 text-3xl font-black">{formatIDR(total)}</p><p className="text-xs text-slate-500">Aset dibeli dari modal/investasi. Filamen &amp; printer dicatat di sini, bukan sebagai pengeluaran operasional.</p></Card>
       <Card>
         <h3 className="font-bold">Tambah aset</h3>
-        {editable ? (<form onSubmit={add} className="mt-3 grid gap-3 md:grid-cols-3">
+        {editable ? (<form onSubmit={add} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <select value={form.brand_id} onChange={(e) => setForm({ ...form, brand_id: e.target.value })} className="rounded-xl border px-3 py-2" required><option value="">Brand…</option>{brands.map((b: Brand) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nama aset (mis. Bambulab P2S Combo)" className="rounded-xl border px-3 py-2" required />
           <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Kategori" className="rounded-xl border px-3 py-2" />
@@ -65,8 +65,8 @@ export default function AssetsPage() {
         <ul className="divide-y">
           {filtered.map((a) => (
             <li key={a.id} className="flex justify-between gap-2 py-3 text-sm">
-              <div><p className="font-medium">{a.name}</p><p className="text-xs text-slate-500">{a.brands?.name} · {a.category ?? "—"} · Qty {a.qty} · {formatDateID(a.purchased_at)}{a.notes ? ` · ${a.notes}` : ""}</p></div>
-              <b>{formatIDR(a.total_price)}</b>
+              <div className="min-w-0 flex-1"><p className="break-words font-medium">{a.name}</p><p className="text-xs text-slate-500">{a.brands?.name} · {a.category ?? "—"} · Qty {a.qty} · {formatDateID(a.purchased_at)}{a.notes ? ` · ${a.notes}` : ""}</p></div>
+              <b className="shrink-0 whitespace-nowrap">{formatIDR(a.total_price)}</b>
             </li>
           ))}
           {filtered.length === 0 && <li className="py-4 text-sm text-slate-500">Belum ada aset.</li>}

@@ -35,6 +35,20 @@
 --   Belum reimburse            = Rp605.423    (cocok sheet D3)
 --   Saldo                      = Rp2.976.118
 --
+-- PERBAIKAN 24 Nov 2026 (bug yang bikin data terbaru tidak muncul):
+--   Bagian 3b memakai channel_slug 'Shopee'/'Threads'/'Clicky'
+--   (kapital), sedangkan slug di tabel channels adalah
+--   'shopee'/'threads'/'clicky' (huruf kecil). Postgres membandingkan
+--   teks case-sensitive, jadi join `c.slug = d.channel_slug` TIDAK
+--   PERNAH cocok — INSERT ... SELECT itu mengembalikan 0 baris TANPA
+--   error, transaksi tetap commit, dan 17 income PO (Rp2.559.000)
+--   diam-diam tidak masuk. Yang sudah terlanjur jalan script versi
+--   lama: bagian lain (Afr, Cutter, JNT, koreksi Status Bayar) SUDAH
+--   masuk — cukup jalanin ulang file ini (versi perbaikan): guard
+--   NOT EXISTS mencegah duplikat, dan 17 income yang hilang akan
+--   masuk. Join sekarang pakai lower(d.channel_slug) supaya typo
+--   kapital tidak bisa mengulang bug ini.
+--
 -- YANG SENGAJA TIDAK DI-INSERT (jangan ditebak):
 --   - "lemuel Rp23.600" (WA PURCHASING 18 Nov): tidak ada di sheet
 --     maupun PO, tidak jelas untuk apa. Masih pending review.
@@ -111,25 +125,25 @@ insert into public.transactions (brand_id, channel_id, kind, txn_date, descripti
 select '11111111-1111-1111-1111-111111111111', c.id, 'income', d.txn_date, d.description, 'Penjualan Keychain', d.amount, d.payment_method, d.ref, d.notes, 'sudah_dibayar'
 from public.channels c,
   (values
-    ('2026-11-10'::date, 'Penjualan Strava Keychain — Mario Sastra', 88000, 'Shopee', null, 'Shopee', 'PO #3 — Keychain ONLY + Name Label 57mm. Bayar Rp88.000 include tax via Shopee. Tanpa invoice WhereIsIt.'),
-    ('2026-11-17'::date, 'Penjualan Strava Keychain — Joseph Herlambang', 106000, 'Shopee', null, 'Shopee', 'PO #11 — Keychain ONLY 10x5cm. Bayar Rp106.000 include tax via Shopee, dikirim 17 Nov. Tanpa invoice WhereIsIt.'),
-    ('2026-11-18'::date, 'Penjualan Strava Keychain — Alif Athallah', 170000, 'Threads', 'INV/WII/2026/11/008', 'Transfer', 'PO #10 — Emoney 10x5cm, order via Threads @alifathallahq. Lunas via BCA 18 Nov. Deal awal 180k incl. ongkir, deal jadi 170k.'),
-    ('2026-11-18'::date, 'Penjualan Strava Keychain — Endy Hardjono', 180000, 'Clicky', null, null, 'PO #12 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-18'::date, 'Penjualan Strava Keychain — Davit F.', 180000, 'Clicky', null, null, 'PO #13 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-18'::date, 'Penjualan Strava Keychain — Dic', 180000, 'Clicky', null, null, 'PO #14 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-19'::date, 'Penjualan Strava Keychain — Iday', 180000, 'Clicky', null, null, 'PO #15 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-19'::date, 'Penjualan Strava Keychain — Manul', 180000, 'Clicky', null, null, 'PO #16 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-19'::date, 'Penjualan Strava Keychain — Sofia Pramudhian', 180000, 'Clicky', null, null, 'PO #17 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-19'::date, 'Penjualan Strava Keychain — Angga Prihatmoko', 119000, 'Clicky', null, null, 'PO #18 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-20'::date, 'Penjualan Strava Keychain — Dedy Prasetya Puspo Aji', 119000, 'Clicky', null, null, 'PO #19 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-20'::date, 'Penjualan Strava Keychain — Hakim', 119000, 'Clicky', null, null, 'PO #20 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-20'::date, 'Penjualan Strava Keychain — Ginandjar Halim', 119000, 'Clicky', null, null, 'PO #21 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-20'::date, 'Penjualan Strava Keychain — TAR YYJOE', 119000, 'Clicky', null, null, 'PO #22 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-20'::date, 'Penjualan Strava Keychain — Abiza', 220000, 'Clicky', null, null, 'PO #23 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-20'::date, 'Penjualan Strava Keychain — Almer Panji P', 150000, 'Clicky', null, null, 'PO #24 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-20'::date, 'Penjualan Strava Keychain — Aries (Batman JKT)', 150000, 'Clicky', null, null, 'PO #25 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.')
+    ('2026-11-10'::date, 'Penjualan Strava Keychain — Mario Sastra', 88000, 'shopee', null, 'Shopee', 'PO #3 — Keychain ONLY + Name Label 57mm. Bayar Rp88.000 include tax via Shopee. Tanpa invoice WhereIsIt.'),
+    ('2026-11-17'::date, 'Penjualan Strava Keychain — Joseph Herlambang', 106000, 'shopee', null, 'Shopee', 'PO #11 — Keychain ONLY 10x5cm. Bayar Rp106.000 include tax via Shopee, dikirim 17 Nov. Tanpa invoice WhereIsIt.'),
+    ('2026-11-18'::date, 'Penjualan Strava Keychain — Alif Athallah', 170000, 'threads', 'INV/WII/2026/11/008', 'Transfer', 'PO #10 — Emoney 10x5cm, order via Threads @alifathallahq. Lunas via BCA 18 Nov. Deal awal 180k incl. ongkir, deal jadi 170k.'),
+    ('2026-11-18'::date, 'Penjualan Strava Keychain — Endy Hardjono', 180000, 'clicky', null, null, 'PO #12 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-18'::date, 'Penjualan Strava Keychain — Davit F.', 180000, 'clicky', null, null, 'PO #13 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-18'::date, 'Penjualan Strava Keychain — Dic', 180000, 'clicky', null, null, 'PO #14 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-19'::date, 'Penjualan Strava Keychain — Iday', 180000, 'clicky', null, null, 'PO #15 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-19'::date, 'Penjualan Strava Keychain — Manul', 180000, 'clicky', null, null, 'PO #16 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-19'::date, 'Penjualan Strava Keychain — Sofia Pramudhian', 180000, 'clicky', null, null, 'PO #17 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-19'::date, 'Penjualan Strava Keychain — Angga Prihatmoko', 119000, 'clicky', null, null, 'PO #18 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-20'::date, 'Penjualan Strava Keychain — Dedy Prasetya Puspo Aji', 119000, 'clicky', null, null, 'PO #19 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-20'::date, 'Penjualan Strava Keychain — Hakim', 119000, 'clicky', null, null, 'PO #20 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-20'::date, 'Penjualan Strava Keychain — Ginandjar Halim', 119000, 'clicky', null, null, 'PO #21 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-20'::date, 'Penjualan Strava Keychain — TAR YYJOE', 119000, 'clicky', null, null, 'PO #22 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-20'::date, 'Penjualan Strava Keychain — Abiza', 220000, 'clicky', null, null, 'PO #23 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-20'::date, 'Penjualan Strava Keychain — Almer Panji P', 150000, 'clicky', null, null, 'PO #24 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-20'::date, 'Penjualan Strava Keychain — Aries (Batman JKT)', 150000, 'clicky', null, null, 'PO #25 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.')
   ) as d(txn_date, description, amount, channel_slug, ref, payment_method, notes)
-where c.brand_id = '11111111-1111-1111-1111-111111111111' and c.slug = d.channel_slug
+where c.brand_id = '11111111-1111-1111-1111-111111111111' and c.slug = lower(d.channel_slug)
   and not exists (
     select 1 from public.transactions t
     where t.kind = 'income'

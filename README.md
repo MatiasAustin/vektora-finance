@@ -57,13 +57,40 @@ konsolidasi (brand switcher: Semua brand / WhereIsIt / Moonimo).
 | `capital_contributions` | Penyertaan modal per brand: penyetor, peran (pemodal/eksekutor), `amount` (null = Belum dicatat), status. |
 | `taxes` | Pajak per brand: jenis (PPN/PPh), periode, jumlah, status. |
 
-## Login & peran (Supabase Auth, email + kata sandi)
+## Login & peran (Supabase Auth, username + kata sandi)
 
 Halaman `/login` (gaya Finora, biru gradient). Middleware melindungi semua route app
 kecuali `/login`: yang belum login diarahkan ke `/login`; user yang profilnya
 dinonaktifkan (`active = false`) di-logout otomatis. **Tidak ada kata sandi bawaan
-atau hardcoded** — akun dibuat admin di Supabase Dashboard → Authentication → Add
-user, lalu profil + perannya dibuat di halaman `/team` (pakai Auth User ID-nya).
+atau hardcoded.**
+
+**Login pakai username saja** (tanpa email asli): Supabase Auth wajib email di
+belakang layar — tidak ada login username-only bawaan. Solusinya: app mengubah
+username jadi email teknis internal `username@vektora.id` sebelum login
+(`januar` → `januar@vektora.id`). Domain `@vektora.id` ini tidak perlu
+dibuka atau dipunya siapa pun; dari sisi pengguna, login cukup **username +
+kata sandi**. Input yang sudah mengandung "@" dipakai apa adanya (untuk Mattin:
+`tiasaustin32@gmail.com`).
+
+Username yang bisa dipakai (sesuai seed.sql):
+| Username | Peran | Email teknis (di Supabase Auth) |
+|---|---|---|
+| — (email Gmail) | admin (Matias Austin, Dirut) | `tiasaustin32@gmail.com` |
+| `januar` | management (Januar Amin, Dirops) | `januar@vektora.id` |
+| `febri` | investor (Febri, pemodal) | `febri@vektora.id` |
+| `komisaris-utama` | komisaris | `komisaris-utama@vektora.id` |
+| `komisaris-2` | komisaris | `komisaris-2@vektora.id` |
+| `avrina` | management (Avrina, Finance) | `avrina@vektora.id` |
+| `rohimat` | karyawan (sementara — role belum ditentukan) | `rohimat@vektora.id` |
+| `lemuel` | karyawan (Marketing) | `lemuel@vektora.id` |
+
+**Cara membuat akun (Mattin yang lakukan):** Supabase Dashboard → Authentication →
+Users → Add user → email = `username@vektora.id` sesuai tabel di atas → centang
+**Auto Confirm User** (atau "Confirm email") → isi kata sandi → Create user. Lalu
+beri tahu kata sandi itu ke orangnya **di luar app** (WA / langsung) — **JANGAN
+bagikan password lewat chat di sini**, dan password tidak ada di kode/seed.
+Setelah akun Auth dibuat, profil + perannya muncul dari `seed.sql` (join by email)
+atau dibuat di halaman `/team` (pakai Auth User ID-nya).
 
 Matriks peran (ditegakkan di UI **dan** di RLS `supabase/schema.sql`):
 
@@ -170,12 +197,14 @@ Rp280.000; sisa Rp202.604 di Januar. Moonimo di-seed kosong (brand saja).
    dan (bila perlu server) `SUPABASE_SECRET_KEY`.
 6. **Auth (wajib untuk login):** Supabase Dashboard → Authentication → Providers →
    aktifkan **Email**. Lalu Authentication → Users → Add user untuk tiap orang
-   (Matias, Januar, Febri, komisaris, Lemuel) dengan email yang sama seperti di
-   `supabase/seed.sql` (atau ganti email di seed sebelum menjalankannya) dan kata
-   sandi masing-masing. Jalankan ulang bagian profil di `seed.sql` bila akun
-   dibuat setelah seed — atau tambahkan profilnya di halaman `/team` (butuh Auth
-   User ID). Tanpa profil, user bisa login tapi tidak bisa melihat data (RLS
-   membutuhkan `profiles.role` yang aktif).
+   dengan email `username@vektora.id` (januar / febri / komisaris-utama /
+   komisaris-2 / lemuel; Mattin pakai `tiasaustin32@gmail.com`), centang **Auto
+   Confirm User**, dan kata sandi masing-masing — lihat tabel username di atas.
+   Jalankan ulang bagian profil di `seed.sql` bila akun dibuat setelah seed —
+   atau tambahkan profilnya di halaman `/team` (butuh Auth User ID). Tanpa
+   profil, user bisa login tapi tidak bisa melihat data (RLS membutuhkan
+   `profiles.role` yang aktif) — dashboard akan menampilkan peringatan
+   "Profil belum dibuat" dengan jelas, bukan angka 0 diam-diam.
 
 ## Jalankan lokal
 ```bash

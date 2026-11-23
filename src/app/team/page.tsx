@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
-import { ALL_ROLES, ROLE_LABELS, canManageTeam, useAuth, type Role } from "@/lib/auth";
+import { ALL_ROLES, ROLE_LABELS, canManageTeam, useAuth, usernameOf, type Role } from "@/lib/auth";
 import type { Brand, Profile } from "@/lib/types";
 import { AccessDenied, Card, EmptySupabase, ReadOnlyNotice } from "@/components/ui";
 import { useBrandsChannels } from "@/lib/useData";
@@ -104,11 +104,13 @@ export default function TeamPage() {
         <Card>
           <h3 className="font-bold">Tambah pengguna (profil)</h3>
           <p className="mt-1 text-xs leading-relaxed text-slate-500">
-            1) Buat dulu akunnya di Supabase Dashboard → Authentication → Add user (email + kata sandi).
-            2) Salin <b>Auth User ID</b> (uuid) user itu dari Supabase, lalu isi form di bawah.
-            3) Peran menentukan apa yang bisa dilihat/dilakukan (lihat README → matriks peran).
+            1) Buat dulu akunnya di Supabase Dashboard → Authentication → Add user. Email diisi{" "}
+            <b>username@vektora.id</b> (januar / febri / komisaris-utama / komisaris-2 / lemuel), centang{" "}
+            <b>Auto Confirm User</b>, isi kata sandi, lalu beri tahu kata sandi itu ke orangnya di luar app —
+            jangan lewat chat di sini. 2) Salin <b>Auth User ID</b> (uuid) user itu dari Supabase, lalu isi
+            form di bawah. 3) Peran menentukan apa yang bisa dilihat/dilakukan (lihat README → matriks peran).
           </p>
-          <form onSubmit={add} className="mt-3 grid gap-3 md:grid-cols-2">
+          <form onSubmit={add} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <input value={form.auth_user_id} onChange={(e) => setForm({ ...form, auth_user_id: e.target.value })} placeholder="Auth User ID (uuid dari Supabase Auth)" className="rounded-xl border px-3 py-2 md:col-span-2" required />
             <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Email" type="email" className="rounded-xl border px-3 py-2" required />
             <input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} placeholder="Nama lengkap" className="rounded-xl border px-3 py-2" required />
@@ -146,7 +148,8 @@ export default function TeamPage() {
                   {p.full_name ?? p.email} {!p.active && <span className="text-slate-400">(nonaktif)</span>}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {p.email} · {ROLE_LABELS[p.role]} · Brand:{" "}
+                  {p.email.endsWith("@vektora.id") ? `Username: ${usernameOf(p.email)}` : p.email}{" "}
+                  · {ROLE_LABELS[p.role]} · Brand:{" "}
                   {!p.brand_ids || p.brand_ids.length === 0 ? "Semua brand" : p.brand_ids.map(brandName).join(", ")}
                   {p.employee_id ? " · Terkait karyawan" : ""}
                 </p>

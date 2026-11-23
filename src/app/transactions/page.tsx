@@ -122,7 +122,7 @@ export default function TransactionsPage() {
         <BrandSelect brands={brands} value={brandId} onChange={setBrandId} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           ["Income", sum.income],
           ["Pengeluaran terhitung", sum.expense],
@@ -138,7 +138,7 @@ export default function TransactionsPage() {
 
       <Card>
         <h3 className="font-bold">Tambah transaksi</h3>
-        {editable ? (<form onSubmit={add} className="mt-3 grid gap-3 md:grid-cols-3">
+        {editable ? (<form onSubmit={add} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <select value={form.brand_id} onChange={(e) => setForm({ ...form, brand_id: e.target.value })} className="rounded-xl border px-3 py-2" required>
             <option value="">Pilih brand…</option>
             {brands.map((b: Brand) => (
@@ -197,16 +197,16 @@ export default function TransactionsPage() {
         <ul className="mt-4 divide-y">
           {filtered.map((t) => (
             <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
-              <div>
-                <p className="font-medium">{t.description}</p>
+              <div className="min-w-0 flex-1">
+                <p className="break-words font-medium">{t.description}</p>
                 <p className="text-xs text-slate-500">
                   {formatDateID(t.txn_date)} · {t.brands?.name} · {t.channels?.name ?? "—"} · {t.category ?? "—"} ·{" "}
                   {t.payment_method ?? "—"}
                   {t.ref ? ` · ${t.ref}` : ""}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
-                <span className={`font-bold ${t.kind === "income" ? "text-emerald-600" : "text-rose-600"}`}>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className={`shrink-0 whitespace-nowrap font-bold ${t.kind === "income" ? "text-emerald-600" : "text-rose-600"}`}>
                   {t.kind === "income" ? "+" : "−"}{formatIDR(t.amount)}
                 </span>
                 <span className={`rounded-full px-2 py-1 text-xs font-semibold ${t.payment_status === "belum_reimburse" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>

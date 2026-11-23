@@ -17,6 +17,24 @@ import type { Profile } from "@/lib/types";
 
 export type Role = "admin" | "management" | "komisaris" | "investor" | "karyawan";
 
+/** Login pakai username ATAU email.
+ *  Supabase Auth wajib email di belakang layar — tidak ada login
+ *  username-only bawaan. Jadi username diubah jadi email teknis
+ *  internal: `januar` -> `januar@vektora.id` (email placeholder yang
+ *  sudah dipakai seed.sql; domain ini tidak perlu dibuka/dipunya
+ *  siapa pun). Input yang sudah mengandung "@" dipakai apa adanya
+ *  (untuk Mattin: tiasaustin32@gmail.com). */
+export function toLoginEmail(input: string): string {
+  const v = input.trim().toLowerCase();
+  if (v.includes("@")) return v;
+  return `${v}@vektora.id`;
+}
+
+/** Username yang ditampilkan di UI dari email teknis internal. */
+export function usernameOf(email: string): string {
+  return email.endsWith("@vektora.id") ? email.replace("@vektora.id", "") : email;
+}
+
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin (Dirut)",
   management: "Management",

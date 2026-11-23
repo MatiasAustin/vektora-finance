@@ -50,7 +50,7 @@ export default function SettingsPage() {
       </Card>
       <Card>
         <h3 className="font-bold">Tambah channel baru</h3>
-        {editable ? (<form onSubmit={addChannel} className="mt-3 grid gap-3 md:grid-cols-3">
+        {editable ? (<form onSubmit={addChannel} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nama channel (mis. TikTok Shop)" className="rounded-xl border px-3 py-2" required />
           <select value={form.brand_id} onChange={(e) => setForm({ ...form, brand_id: e.target.value })} className="rounded-xl border px-3 py-2">
             <option value="">Semua brand</option>

@@ -203,3 +203,138 @@ Matriks peran:
   datanya ada.
 - `node_modules/` (291 MB) dan `.next/` (59 MB) ada di lokal dan di-ignore
   git; jangan ikut push.
+
+## ADDENDUM — 24 Nov 2026 (01:46–01:50 WIB): data tidak update + UI berantakan + mobile + fee-split kecampur + login username
+
+### Hasil build — LULUS
+- `npm run typecheck` (`tsc --noEmit`) — lulus, tidak ada error.
+- `npm run build` — **Compiled successfully**, 14 halaman, tidak ada error.
+
+### 1. BUG UTAMA — data terbaru tidak masuk (penyebab pasti, bukan tebakan)
+**`supabase/seed-latest-2026-11-24.sql` bagian 3b** memakai `channel_slug`
+`'Shopee'` / `'Threads'` / `'Clicky'` (kapital), sedangkan slug di tabel
+`channels` adalah `'shopee'` / `'threads'` / `'clicky'` (huruf kecil).
+Postgres membandingkan teks case-sensitive, jadi join
+`c.slug = d.channel_slug` **tidak pernah cocok** — `INSERT ... SELECT`
+mengembalikan **0 baris TANPA error**, transaksi tetap commit, dan 17 income
+PO (Rp2.559.000) diam-diam tidak masuk. Itulah kenapa Mattin "udah jalanin
+tapi data terbarunya belum ke update": script terlihat berhasil, tapi bagian
+terbesarnya tidak meng-insert apa pun.
+- **Perbaikan:** slug di 3b diubah ke huruf kecil + join sekarang
+  `c.slug = lower(d.channel_slug)` supaya typo kapital tidak bisa mengulang
+  bug ini. Guard `NOT EXISTS` tetap ada, jadi **aman di-run ulang**: bagian
+  lain (Afr Rp150.000, Cutter Rp25.000, JNT Rp35.000, koreksi Status Bayar 3
+  baris) sudah masuk dari run pertama dan tidak akan duplikat; 17 income yang
+  hilang akan masuk saat file ini dijalankan ulang.
+- Setelah re-run, verifikasi dengan query di akhir file: income Nov 2026
+  harus **Rp4.179.000**, pengeluaran terhitung **Rp1.202.882**, Belum
+  reimburse **Rp605.423**, saldo **Rp2.976.118** (25 income, 39 expense).
+
+### 2. BUG — error Supabase dibuang diam-diam (semua halaman)
+Semua halaman memakai pola `const { data } = await sb.from(...)` lalu
+`if (data) set...` tanpa membaca `error`. Bila RLS menolak baca — penyebab
+paling umum: **profil login belum dibuat**, sehingga `current_user_role()`
+mengembalikan NULL dan semua policy baca gagal — app hanya menampilkan angka
+0 / "Belum ada transaksi" tanpa penjelasan.
+- **Perbaikan:** dashboard sekarang menangkap error tiap query dan
+  menampilkan banner merah berisi pesan error aslinya + kemungkinan
+  penyebabnya (profil belum dibuat / schema belum dijalankan).
+- **Perbaikan:** bila user sudah login tapi `profile === null`, dashboard
+  menampilkan kartu peringatan kuning "Profil belum dibuat — data tidak bisa
+  dibaca" yang menjelaskan bahwa angka 0 di bawah bukan data hilang.
+- Dashboard: tombol **"↻ Muat ulang data"** (refetch manual), baris
+  **"Data per {tanggal jam} · {n} transaksi dimuat"** supaya Mattin bisa
+  melihat sekilas apakah data baru sudah masuk, dan limit transaksi
+  dinaikkan 200 → 1000. Tidak ada lagi fetch yang hanya sekali tanpa cara
+  refresh. (Data diambil client-side saat halaman dibuka, jadi tidak ada
+  cache static Next.js yang menyajikan data lama — asal Vercel sudah
+  redeploy build terbaru.)
+
+### 3. BUG — fee-split Moonimo & WhereIsIt kecampur (laporan 01:47 WIB)
+Halaman `/fee-split` menghitung **SATU laba global** dari semua transaksi,
+lalu menerapkan laba yang sama ke tiap kartu fee-split per brand. Akibatnya
+Moonimo (belum ada transaksi) menampilkan pembagian WhereIsIt yang sama
+persis (Dividen Rp83.424, Fee Rp229.415, Ditahan Rp104.279).
+- **Perbaikan:** laba dihitung **PER BRAND** dari transaksi brand itu sendiri
+  (income brand − pengeluaran terhitung brand itu; Belum reimburse tetap
+  excluded). Kartu brand tanpa transaksi / laba ≤ 0 menampilkan **Rp0 di
+  semua pembagian** + keterangan "Belum ada transaksi / belum ada laba —
+  pembagian Rp0", bukan angka brand lain.
+- **Filter brand dihormati:** "Semua brand" menampilkan semua kartu,
+  masing-masing dengan labanya sendiri; satu brand menampilkan hanya kartu
+  brand itu. Pilihan ini dicatat di sini.
+- **Verifikasi angka:** WhereIsIt Nov 2026 laba Rp417.118 → Dividen Rp83.424
+  (Febri 70% Rp58.397 / Matias 30% Rp25.027), Management Fee Rp229.415,
+  Ditahan Rp104.279. Moonimo laba 0 → semua Rp0.
+- **Pola yang sama diperbaiki di dashboard:** widget Pembagian Fee sebelumnya
+  memakai split brand pertama hasil `order("name")` (alfabetis = Moonimo)
+  dengan laba global. Sekarang memakai laba per brand: bila satu brand
+  dipilih, pakai laba brand itu; bila "Semua brand", pakai brand dengan laba
+  terbesar (WhereIsIt). Contoh lama di halaman fee-split (laba Rp159.395)
+  diperbarui ke angka terbaru Rp417.118.
+
+### 4. UI mobile — navigasi tidak ada + layout berantakan
+- **BUG:** Sidebar `hidden md:block` — di HP **tidak ada navigasi sama
+  sekali**. **Perbaikan:** bar atas mobile baru (sticky, `md:hidden`) dengan
+  tombol hamburger ☰ Menu + logo Vektora + tombol Keluar; menu yang terbuka
+  menampilkan nav yang sama dengan sidebar desktop (difilter per peran) dan
+  menutup otomatis saat pindah halaman. Sidebar desktop tidak berubah.
+- Header hero (AppShell): padding dan ukuran font mengecil di HP, kartu user
+  menumpuk ke bawah (full-width) alih-alih berdempetan; tombol Keluar di
+  header desktop tetap, di HP pindah ke bar atas.
+- Grid kartu statistik (dashboard, transaksi, payslips): sebelumnya
+  `grid-cols-2` / `grid-cols-3` di semua lebar — sekarang 1 kolom di HP,
+  2 di tablet, 3–4 di desktop. Hero Total Saldo: `text-3xl` di HP (sebelumnya
+  `text-4xl` dan angka Rp panjang bisa meluber) + `break-words`.
+- Semua form (transaksi, aset, hutang, karyawan, slip gaji, tim, brand,
+  settings): `grid-cols-1` di HP → 2 di tablet → 3 di desktop; input
+  full-width, label di atas field.
+- Daftar (transaksi, aset, karyawan): deskripsi `break-words` + `min-w-0`,
+  angka Rp `whitespace-nowrap` + `shrink-0` supaya tidak pecah baris.
+- `src/components/ui.tsx`: Card `p-4` di HP / `p-5` di desktop; StatCard
+  `text-xl` di HP / `text-2xl` di desktop.
+- `src/app/globals.css`: `overflow-x: hidden` di body + `max-width: 100%`
+  untuk media, supaya tidak ada scroll horizontal di layar 390px.
+- Login: kartu `p-6` di HP / `p-8` di desktop; sudah pas di layar ponsel.
+- Gaya tetap Finora (gradasi biru), Bahasa Indonesia, Rp, DD/MM/YYYY.
+  Aturan bisnis, peran, dan logika fee-split TIDAK diubah.
+
+### 5. Login username (tanpa email asli) — 24 Nov 2026 01:49 WIB
+Supabase Auth **wajib email** di belakang layar — tidak ada login
+username-only bawaan. Solusi: app mengubah username jadi email teknis
+internal sebelum `signInWithPassword` (`src/lib/auth.ts` → `toLoginEmail`):
+`januar` → `januar@vektora.id`, dst. Domain `@vektora.id` adalah email
+teknis internal yang tidak perlu dibuka/dipunya siapa pun; dari sisi
+pengguna, login cukup **username + kata sandi**. Input yang mengandung "@"
+dipakai apa adanya (Mattin: `tiasaustin32@gmail.com`).
+- Halaman `/login`: label jadi "Username / Email", placeholder `januar`,
+  hint "Ketik username saja (mis. januar) atau email lengkap".
+- Halaman `/team`: daftar pengguna menampilkan "Username: januar" (bukan
+  email mentah `@vektora.id`); petunjuk tambah pengguna diperbarui.
+- `seed.sql` TIDAK diubah — email placeholder di sana sudah cocok dengan
+  skema ini.
+- **Langkah pembuatan akun (Mattin):** Supabase Dashboard → Authentication →
+  Users → Add user → email `username@vektora.id` (januar / febri /
+  komisaris-utama / komisaris-2 / lemuel) → centang **Auto Confirm User** →
+  isi kata sandi → beri tahu kata sandi itu ke orangnya di luar app.
+  **JANGAN bagikan password lewat chat di sini**; password tidak ada di
+  kode/seed. Detail lengkap + tabel username ada di README.md → "Login &
+  peran".
+- Catatan implementasi: percobaan pertama mengekspor helper dari file
+  `page.tsx` gagal build (Next.js melarang export tambahan dari page) —
+  helper dipindah ke `src/lib/auth.ts` dan build lulus.
+
+### Yang masih harus Mattin cek di sisinya (tidak bisa diverifikasi dari sini)
+1. Jalankan ulang `seed-latest-2026-11-24.sql` (versi perbaikan) di SQL Editor,
+   **setelah** `schema.sql` → `seed.sql`, di project Supabase YANG SAMA dengan
+   yang ditunjuk env Vercel (`NEXT_PUBLIC_SUPABASE_URL`). Lalu cek dengan
+   query verifikasi di akhir file (income 4.179.000, dst. — lihat §1).
+2. Pastikan akun Auth-nya dibuat dengan email yang SAMA PERSIS seperti seed
+   (`tiasaustin32@gmail.com` untuk Mattin; `januar@vektora.id` dst. untuk
+   yang lain) — kalau email Auth berbeda, baris profil tidak muncul dan RLS
+   menolak semua pembacaan (dashboard sekarang menampilkan peringatannya).
+3. Setelah push, tunggu redeploy Vercel selesai lalu hard-refresh
+   (Ctrl+Shift+R) — deploy lama tidak punya perbaikan ini.
+4. Hal yang TIDAK bisa diverifikasi tanpa akses Supabase-nya: isi tabel di
+   project live-nya (apakah seed-latest versi lama sudah terlanjur jalan,
+   apakah ada duplikat, apakah env Vercel menunjuk project yang benar).

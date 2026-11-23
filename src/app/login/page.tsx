@@ -3,11 +3,12 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
+import { toLoginEmail } from "@/lib/auth";
 
 function LoginForm() {
   const router = useRouter();
   const search = useSearchParams();
-  const [email, setEmail] = useState("");
+  const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -20,7 +21,7 @@ function LoginForm() {
     if (!sb) return;
     setBusy(true);
     setMsg("");
-    const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password });
+    const { error } = await sb.auth.signInWithPassword({ email: toLoginEmail(loginId), password });
     setBusy(false);
     if (error) {
       setMsg("Gagal masuk: " + error.message);
@@ -33,7 +34,7 @@ function LoginForm() {
   if (!isSupabaseConfigured) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-vektora-500 via-vektora-600 to-vektora-900 p-4">
-        <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
+        <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl sm:p-8">
           <h1 className="text-2xl font-black">Vektora Finance</h1>
           <p className="mt-2 text-sm text-slate-600">
             Supabase belum terhubung. Buat project di Supabase, jalankan{" "}
@@ -47,7 +48,7 @@ function LoginForm() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-vektora-500 via-vektora-600 to-vektora-900 p-4">
-      <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
+      <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl sm:p-8">
         <p className="text-xs font-semibold uppercase tracking-widest text-vektora-600">
           PT Vektora Teknologi Nusantara
         </p>
@@ -60,15 +61,20 @@ function LoginForm() {
         )}
         <form onSubmit={submit} className="mt-6 space-y-3">
           <label className="block text-sm font-medium">
-            Email
+            Username / Email
             <input
-              type="email"
+              type="text"
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="nama@ptvektora.id"
+              autoComplete="username"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
+              placeholder="januar"
               className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
             />
+            <span className="mt-1 block text-xs font-normal text-slate-500">
+              Ketik username saja (mis. <b>januar</b>) atau email lengkap. Username diubah otomatis jadi{" "}
+              <code>username@vektora.id</code> di belakang layar.
+            </span>
           </label>
           <label className="block text-sm font-medium">
             Kata sandi
@@ -91,7 +97,8 @@ function LoginForm() {
         </form>
         <p className="mt-4 text-xs leading-relaxed text-slate-500">
           Akun dibuat admin di Supabase → Authentication → Add user, lalu profil + perannya diisi di halaman
-          Tim &amp; Pengguna. Tidak ada kata sandi bawaan di app ini.
+          Tim &amp; Pengguna. Username login: januar, febri, komisaris-utama, komisaris-2, lemuel. Tidak ada
+          kata sandi bawaan di app ini.
         </p>
       </div>
     </div>

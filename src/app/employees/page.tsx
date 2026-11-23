@@ -65,7 +65,7 @@ export default function EmployeesPage() {
       </Card>
       {editable ? (<Card>
         <h3 className="font-bold">Tambah karyawan</h3>
-        <form onSubmit={add} className="mt-3 grid gap-3 md:grid-cols-3">
+        <form onSubmit={add} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <select value={form.brand_id} onChange={(e) => setForm({ ...form, brand_id: e.target.value })} className="rounded-xl border px-3 py-2" required><option value="">Brand / tim…</option>{brands.map((b: Brand) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nama" className="rounded-xl border px-3 py-2" required />
           <input value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} placeholder="Peran (mis. Operator 3D Print)" className="rounded-xl border px-3 py-2" />
@@ -80,8 +80,8 @@ export default function EmployeesPage() {
         <ul className="divide-y">
           {filtered.map((e) => (
             <li key={e.id} className="flex justify-between gap-2 py-3 text-sm">
-              <div><p className="font-medium">{e.name} {!e.is_active && <span className="text-slate-400">(nonaktif)</span>}</p><p className="text-xs text-slate-500">{e.brands?.name} · {e.role ?? "—"} · Tim {e.team ?? "—"} · {e.is_management ? "Manajemen (Fee)" : e.is_fixed_cost ? "Fixed cost (OPEX)" : "Variabel"}</p></div>
-              <div className="flex items-center gap-3"><b>{formatIDR(e.monthly_salary)}/bln</b><button onClick={() => toggleActive(e)} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{e.is_active ? "Nonaktifkan" : "Aktifkan"}</button></div>
+              <div className="min-w-0 flex-1"><p className="break-words font-medium">{e.name} {!e.is_active && <span className="text-slate-400">(nonaktif)</span>}</p><p className="text-xs text-slate-500">{e.brands?.name} · {e.role ?? "—"} · Tim {e.team ?? "—"} · {e.is_management ? "Manajemen (Fee)" : e.is_fixed_cost ? "Fixed cost (OPEX)" : "Variabel"}</p></div>
+              <div className="flex flex-wrap items-center gap-3"><b className="shrink-0 whitespace-nowrap">{formatIDR(e.monthly_salary)}/bln</b><button onClick={() => toggleActive(e)} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">{e.is_active ? "Nonaktifkan" : "Aktifkan"}</button></div>
             </li>
           ))}
           {filtered.length === 0 && <li className="py-4 text-sm text-slate-500">Belum ada karyawan. Gaji belum di-seed — isi angka sebenarnya di sini, jangan tebak.</li>}

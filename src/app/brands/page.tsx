@@ -52,7 +52,7 @@ export default function BrandsPage() {
       </div>
       <Card>
         <h3 className="font-bold">Tambah brand baru</h3>
-        {editable ? (<form onSubmit={add} className="mt-3 grid gap-3 md:grid-cols-2">
+        {editable ? (<form onSubmit={add} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nama brand (mis. Moonimo)" className="rounded-xl border px-3 py-2" required />
           <input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} placeholder="Slug (opsional, otomatis dari nama)" className="rounded-xl border px-3 py-2" />
           <input value={form.segment} onChange={(e) => setForm({ ...form, segment: e.target.value })} placeholder="Segmen (mis. 3D print / fashion / dll)" className="rounded-xl border px-3 py-2" />

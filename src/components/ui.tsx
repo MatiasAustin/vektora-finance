@@ -3,7 +3,7 @@ import type { Brand } from "@/lib/types";
 
 export function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-100 ${className}`}>{children}</div>
+    <div className={`min-w-0 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-100 sm:p-5 ${className}`}>{children}</div>
   );
 }
 
@@ -11,7 +11,7 @@ export function StatCard({ label, value, sub }: { label: string; value: string; 
   return (
     <Card>
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
+      <p className="mt-2 break-words text-xl font-bold text-slate-900 sm:text-2xl">{value}</p>
       {sub ? <p className="mt-1 text-xs text-slate-500">{sub}</p> : null}
     </Card>
   );

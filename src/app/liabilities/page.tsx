@@ -58,7 +58,7 @@ export default function LiabilitiesPage() {
       </div>
       <Card>
         <h3 className="font-bold">Tambah hutang / pinjaman</h3>
-        {editable ? (<form onSubmit={add} className="mt-3 grid gap-3 md:grid-cols-3">
+        {editable ? (<form onSubmit={add} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <select value={form.brand_id} onChange={(e) => setForm({ ...form, brand_id: e.target.value })} className="rounded-xl border px-3 py-2"><option value="">Brand (opsional)</option>{brands.map((b: Brand) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
           <input value={form.creditor} onChange={(e) => setForm({ ...form, creditor: e.target.value })} placeholder="Kreditur (mis. Febri)" className="rounded-xl border px-3 py-2" required />
           <input type="number" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="Jumlah (Rp)" className="rounded-xl border px-3 py-2" required />

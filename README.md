@@ -114,6 +114,33 @@ brand). Management: hanya lihat daftar. Menonaktifkan user memblokir login
 (middleware + RLS). Akun Auth-nya sendiri dibuat di Supabase (bukan dari app) —
 lihat petunjuk di halaman `/team`.
 
+## Karyawan & gaji (`/employees`)
+
+Tambah karyawan: **Nama dipilih dari dropdown "Pilih tim terdaftar"**
+(24 Nov 2026) — semua profil terdaftar (Matias, Januar, Avrina, Lemuel,
+Rohimat, Febri, komisaris) tampil dengan peran mereka; nama terisi otomatis
+(read-only), peran disarankan dari label peran profilnya, tim tidak ditebak
+(dibiarkan kosong, bisa diisi manual). "Orang baru — ketik manual" hanya untuk
+orang yang benar-benar belum punya profil. Bila profil yang dipilih sudah
+terhubung ke baris karyawan yang ada, simpan ditolak ("Orang ini sudah
+terdaftar sebagai karyawan"). Setelah simpan, profil ditautkan balik
+(`profiles.employee_id`) supaya orangnya bisa melihat slip gajinya sendiri
+di `/payslips`; bila penautan gagal (RLS profiles hanya mengizinkan tulis
+untuk admin), karyawan tetap tersimpan dan pesannya menjelaskan hal itu.
+
+Daftar dipisah dua bagian: **Karyawan operasional (OPEX)** dan **Management
+(dibayar dari Management Fee)** — Lemuel (Manager Marketing) tampil di
+bagian Management, bukan di daftar karyawan. Total OPEX di atas tetap hanya
+menghitung karyawan operasional.
+
+**Hapus karyawan** (admin saja): tombol "Hapus" per baris, dengan dialog
+konfirmasi — bila karyawan sudah punya slip gaji, konfirmasi menyebut
+jumlahnya ("sudah punya N slip gaji") tapi tetap boleh dihapus; slip lama
+tetap tersimpan dan bisa dibuka (nama di-snapshot di slip, lihat bagian
+Slip gaji), dan `profiles.employee_id` yang menunjuk ke karyawan itu
+dibersihkan. Baris Lemuel di seed tidak dihapus — Mattin yang memutuskan
+sendiri lewat tombol ini.
+
 ## Slip gaji (`/payslips`)
 
 1. Admin/management buat periode (YYYY-MM) per brand → **Generate slip** dari
@@ -169,7 +196,18 @@ Rp0 (sweat equity). `taxes`: PPN/PPh per periode (seed: PPN Nov 2026 Rp0,
 - **Dividen Tahunan:** dividen dicairkan 1x per tahun (bagian "Dividen Tahunan" di
   `/fee-split`): pilih tahun → laba tahunan per brand → tombol "Buat pencairan
   dividen {tahun}" (admin/management). Jumlah per penerima **dibekukan saat
-  dibuat**; status dibayar ditandai manual per penerima.
+  dibuat**; status dibayar ditandai manual per penerima. Tiap baris pencairan
+  punya tombol **Lihat slip** — kartu Slip Dividen (header PT Vektora, nama,
+  brand, tahun, % dividen, jumlah Rp, status + tanggal dibayar) yang bisa
+  dicetak, dibagikan via WhatsApp, atau ditandai terkirim (`sent_at` +
+  `sent_via`, kolom di `dividend_payouts`).
+- **Slip fee untuk semua penerima, termasuk jajaran direktur:** tiap baris
+  penerima (Dividen maupun Management Fee) punya tombol **Slip** — kartu slip
+  yang bisa dicetak/dibagikan, dengan pemilih bulan (default bulan berjalan)
+  yang dihitung dari transaksi bulan itu per brand. Slip fee adalah dokumen
+  tampilan dari data live, bukan tabel baru — angka berubah bila ada transaksi
+  baru di bulan itu. Direktur (Dirut/Dirops) dan komisaris dapat slip fee dari
+  fee pool, tanpa harus masuk sistem gaji bulanan.
 
 ### 3. OPEX & gaji (fixed cost)
 - **OPEX = pengeluaran operasional yang tercatat + gaji tetap staf operasional.**

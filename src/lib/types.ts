@@ -222,7 +222,10 @@ export interface PayslipLine {
 export interface Payslip {
   id: string;
   payroll_period_id: string;
-  employee_id: string;
+  employee_id: string | null;
+  // Snapshot nama saat slip dibuat (24 Nov 2026): slip tetap menampilkan
+  // nama walau karyawan sudah dihapus (employee_id jadi null).
+  employee_name?: string | null;
   base_salary: number;
   allowances: PayslipLine[];
   deductions: PayslipLine[];
@@ -278,6 +281,10 @@ export interface DividendPayout {
   amount: number;
   status: DividendPayoutStatus;
   paid_at: string | null;
+  // Terkirim (24 Nov 2026): seperti slip gaji — "Tandai terkirim" hanya
+  // mencatat sent_at + sent_via, pengiriman tetap manual lewat WhatsApp.
+  sent_at: string | null;
+  sent_via: SendVia;
   notes: string | null;
   created_at?: string;
   brands?: { name: string } | null;

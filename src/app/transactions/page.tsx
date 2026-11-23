@@ -35,6 +35,10 @@ export default function TransactionsPage() {
     ref: "",
     notes: "",
     payment_status: "sudah_dibayar" as "sudah_dibayar" | "belum_reimburse",
+    // Bayar hutang = toggle, bukan dropdown yang selalu kelihatan terpilih
+    // (24 Nov 2026, Mattin): default MATI = pengeluaran biasa. Baru bila
+    // toggle NYALA, dropdown "Pilih hutang" muncul dan wajib diisi.
+    pay_debt: false,
     liability_id: "",
   });
 
@@ -85,7 +89,12 @@ export default function TransactionsPage() {
     const sb = getSupabase();
     if (!sb) return;
     const amount = Number(form.amount);
-    const payingDebt = form.kind === "expense" && form.liability_id !== "";
+    const payingDebt = form.kind === "expense" && form.pay_debt;
+    // Toggle nyala tapi hutang belum dipilih = tolak dengan pesan jelas.
+    if (payingDebt && !form.liability_id) {
+      setMsg("Ini ditandai sebagai pembayaran hutang, tapi hutangnya belum dipilih. Pilih dulu hutang di dropdown \"Pilih hutang\", atau matikan toggle \"Ini pembayaran hutang\" kalau ini pengeluaran biasa.");
+      return;
+    }
     let creditor = "";
     let remaining = 0;
     if (payingDebt) {
@@ -131,7 +140,7 @@ export default function TransactionsPage() {
     } else {
       setMsg("Tersimpan.");
     }
-    setForm((f) => ({ ...f, description: "", amount: "", ref: "", notes: "", liability_id: "" }));
+    setForm((f) => ({ ...f, description: "", amount: "", ref: "", notes: "", pay_debt: false, liability_id: "" }));
     load();
   }
 
@@ -197,17 +206,30 @@ export default function TransactionsPage() {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-          <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as "income" | "expense", liability_id: "" })} className="rounded-xl border px-3 py-2">
+          <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as "income" | "expense", pay_debt: false, liability_id: "" })} className="rounded-xl border px-3 py-2">
             <option value="income">Income</option>
             <option value="expense">Pengeluaran</option>
           </select>
           {form.kind === "expense" && (
-            <select value={form.liability_id} onChange={(e) => setForm({ ...form, liability_id: e.target.value })} className="rounded-xl border px-3 py-2">
-              <option value="">Bayar hutang (opsional) — pilih hutang…</option>
-              {liabilities.filter((l) => !form.brand_id || !l.brand_id || l.brand_id === form.brand_id).map((l) => (
-                <option key={l.id} value={l.id}>{l.creditor} — sisa {formatIDR(l.remaining_amount)}</option>
-              ))}
-            </select>
+            <div className="rounded-xl border px-3 py-2">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={form.pay_debt} onChange={(e) => setForm({ ...form, pay_debt: e.target.checked, liability_id: "" })} />
+                Ini pembayaran hutang (cicilan)
+              </label>
+              {form.pay_debt ? (
+                <>
+                  <select value={form.liability_id} onChange={(e) => setForm({ ...form, liability_id: e.target.value })} className="mt-2 w-full rounded-xl border px-3 py-2" required>
+                    <option value="">Pilih hutang…</option>
+                    {liabilities.filter((l) => !form.brand_id || !l.brand_id || l.brand_id === form.brand_id).map((l) => (
+                      <option key={l.id} value={l.id}>{l.creditor} — sisa {formatIDR(l.remaining_amount)}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-slate-500">Cicilan — hanya mengurangi sisa hutang, TIDAK masuk total pengeluaran &amp; laba.</p>
+                </>
+              ) : (
+                <p className="mt-1 text-xs text-slate-500">Pengeluaran biasa — masuk total pengeluaran &amp; laba.</p>
+              )}
+            </div>
           )}
           <input type="date" value={form.txn_date} onChange={(e) => setForm({ ...form, txn_date: e.target.value })} className="rounded-xl border px-3 py-2" required />
           <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Keterangan" className="rounded-xl border px-3 py-2" required />

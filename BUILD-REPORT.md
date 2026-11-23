@@ -470,3 +470,97 @@ dipakai apa adanya (Mattin: `tiasaustin32@gmail.com`).
    database live.
 3. Total tahunan terhadap data asli (apakah transaksi 2025/2026 lengkap) dan
    tampilan nyata di browser — tidak ada akses browser/live di sini.
+
+## Addendum — 24 Nov 2026 ~02:21–02:23 WIB (dropdown karyawan, slip dividen, slip fee, toggle bayar hutang)
+
+### 6. "Tambah karyawan" — Nama jadi dropdown (Mattin: "mana ini namanya belum bisa dropdown")
+- Form di `src/app/employees/page.tsx` sekarang memuat `profiles` (query yang
+  sama seperti `/team`: `select * from profiles` aktif, diurutkan nama) dan
+  menampilkan dropdown **"Pilih tim terdaftar…"** berisi semua profil
+  (nama + label peran). Opsi terakhir: **"Orang baru — ketik manual"**.
+- Bila profil dipilih: nama terisi otomatis dan ditampilkan read-only, peran
+  disarankan dari label peran profil (`ROLE_LABELS`, mis. "Admin (Dirut)" /
+  "Management") dan tetap bisa diubah; tim TIDAK ditebak — dibiarkan kosong
+  dan bisa diisi manual. Bila "Orang baru": input nama manual seperti dulu.
+- Anti-duplikat: bila profil yang dipilih sudah punya `employee_id` yang
+  menunjuk ke baris employees yang ada, simpan ditolak dengan pesan "Orang
+  ini sudah terdaftar sebagai karyawan".
+- Setelah insert berhasil, profil ditautkan balik (`profiles.employee_id` =
+  id karyawan baru) supaya orangnya bisa melihat slip gajinya sendiri di
+  `/payslips`. RLS `profiles` hanya mengizinkan tulis untuk admin — bila
+  yang menyimpan adalah management, insert tetap berhasil dan pesannya
+  menjelaskan tautan belum dibuat (perlu admin). Penautan yang gagal TIDAK
+  membatalkan insert.
+
+### 7. Slip dividen (Mattin: "slip gaji/fee harus ada untuk semua, termasuk untuk kirim dividen nanti")
+- Kolom baru `sent_at` + `sent_via` di `dividend_payouts` — ditambahkan ke
+  `supabase/schema.sql` DAN `supabase/migration-dividend-payouts.sql`
+  (migrasi belum dijalankan Mattin, jadi mengeditnya aman; ada juga
+  `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` untuk yang sudah menjalankan
+  versi lama). Tipe diperbarui di `DividendPayout` (`src/lib/types.ts`).
+- Tiap baris pencairan di bagian "Dividen Tahunan" (`/fee-split`) punya
+  tombol **"Lihat slip"** yang membuka kartu Slip Dividen (class
+  `payslip-print`, gaya cetak sama seperti slip gaji): header PT Vektora,
+  "Slip Dividen", penerima, brand, tahun, % dividen, jumlah Rp, status
+  (Belum/Sudah dibayar + tanggal), info terkirim, garis tanda tangan.
+  Tombol: Cetak (window.print), Bagikan via WhatsApp (wa.me + ringkasan
+  slip), Salin tautan, Tandai terkirim (pilih via WhatsApp/Email/Langsung),
+  Tandai sudah dibayar / Batalkan (admin/management).
+
+### 8. Slip fee untuk semua penerima, termasuk jajaran direktur (Mattin: "termasuk jajaran direktur")
+- Tiap baris penerima di kartu fee-split — Dividen maupun Management Fee —
+  punya tombol **"Slip"** yang membuka kartu slip fee: nama + fungsi/peran
+  penerima, brand, pemilih bulan (default bulan berjalan, mis. 2026-11),
+  laba bersih brand bulan itu, bagian % dan jumlah Rp.
+- Slip fee adalah **dokumen tampilan dari data live, BUKAN tabel baru**:
+  dihitung dari transaksi bulan itu per brand (query rentang tanggal,
+  pola yang sama seperti laba tahunan). Angka berubah bila ada transaksi
+  baru di bulan itu; bila laba bulan itu ≤ 0, bagian Rp0.
+- Direktur (Dirut Matias, Dirops Januar) dan komisaris mendapat slip fee
+  dari fee pool — mereka TIDAK dipaksa masuk sistem gaji bulanan
+  (`monthly_salary` / slip gaji). Slip gaji tetap untuk tim yang punya
+  gaji bulanan; slip fee untuk bagian dari fee/dividen.
+
+### 9. Toggle "Bayar hutang" di form Tambah Transaksi (Mattin ~02:23 WIB)
+- Masalah: dropdown "Bayar hutang (opsional) — pilih hutang…" selalu
+  kelihatan seperti ada yang terpilih, membingungkan bila pengeluarannya
+  bukan bayar hutang.
+- Sekarang: checkbox/toggle **"Ini pembayaran hutang (cicilan)"**, default
+  MATI. Toggle mati → tidak ada pilihan hutang sama sekali, transaksi
+  disimpan sebagai pengeluaran biasa (`liability_id` null), dengan teks
+  kecil "Pengeluaran biasa — masuk total pengeluaran & laba."
+- Toggle nyala → baru muncul dropdown **"Pilih hutang"** (hutang aktif
+  brand itu, format "{kreditur} — sisa {remaining}"), WAJIB dipilih —
+  toggle nyala tanpa hutang terpilih ditolak simpan dengan pesan jelas.
+  Teks kecil: "Cicilan — hanya mengurangi sisa hutang, TIDAK masuk total
+  pengeluaran & laba."
+- Perilaku simpan + validasi "bayar melebihi sisa ditolak" tidak berubah;
+  reset form setelah simpan mengembalikan toggle ke MATI. Status Bayar /
+  Belum reimburse di form ini tidak diubah.
+
+### 10. Hapus karyawan + pisah karyawan vs management (Mattin ~02:24 WIB)
+- Tombol **"Hapus"** di tiap baris karyawan (admin saja) di
+  `src/app/employees/page.tsx`. Sebelum hapus, dihitung dulu jumlah slip
+  gajinya; dialog konfirmasi menyebut peringatan bila sudah punya N slip
+  ("slip lama tetap tersimpan dan tetap bisa dibuka"). Saat hapus:
+  `profiles.employee_id` yang menunjuk ke karyawan itu di-set null,
+  lalu baris employees dihapus.
+- **Temuan penting saat implementasi:** `payslips.employee_id` tadinya
+  `NOT NULL ... ON DELETE CASCADE` — menghapus karyawan ikut MENGHAPUS
+  semua slip gajinya, bertentangan dengan permintaan Mattin. Diperbaiki:
+  `employee_id` sekarang boleh null + `ON DELETE SET NULL` (di
+  `schema.sql` dan di migrasi — `ALTER TABLE ... DROP NOT NULL`, drop +
+  re-add FK). Selain itu `payslips` sekarang menyimpan snapshot
+  `employee_name` (diisi saat generate, dan di-backfill untuk slip lama
+  di migrasi) — tampilan slip (`/payslips`) membaca nama dari join
+  employees, jatuh ke snapshot bila karyawan sudah dihapus.
+- **Pemisahan daftar:** halaman tetap "Karyawan & Gaji (OPEX)" tapi
+  daftar dipisah dua bagian — "Karyawan operasional (OPEX)"
+  (`is_management = false`) dan "Management (dibayar dari Management
+  Fee)" (`is_management = true`). Lemuel (Manager Marketing, Management
+  Fee) sekarang tampil di bagian Management, bukan di daftar karyawan.
+  Total gaji tetap / bulan (OPEX) di atas tetap hanya menghitung karyawan
+  operasional (`fixedCostOpex`, sudah begitu sejak awal). Form tambah
+  tetap satu, dengan radio sumber gaji yang sudah ada.
+- Baris Lemuel di seed TIDAK dihapus — Mattin yang memutuskan sendiri
+  lewat tombol Hapus setelah fitur ini live.

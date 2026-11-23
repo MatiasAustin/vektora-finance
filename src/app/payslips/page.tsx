@@ -105,6 +105,9 @@ export default function PayslipsPage() {
     const rows = withSalary.map((x) => ({
       payroll_period_id: (period as PayrollPeriod).id,
       employee_id: x.id,
+      // Snapshot nama (24 Nov 2026): slip tetap menampilkan nama walau
+      // karyawan dihapus nanti (employee_id jadi null, lihat schema).
+      employee_name: x.name,
       base_salary: x.monthly_salary,
       allowances: [],
       deductions: [],
@@ -151,8 +154,14 @@ export default function PayslipsPage() {
     setLine({ kind: "allowance", label: "", amount: "" });
   }
 
+  // Nama slip: dari join employees, jatuh ke snapshot bila karyawan sudah
+  // dihapus (24 Nov 2026).
+  function slipName(p: Payslip): string {
+    return p.employees?.name ?? p.employee_name ?? "—";
+  }
+
   function waLink(p: Payslip): string {
-    const text = `Slip Gaji — PT Vektora Teknologi Nusantara\n${p.employees?.name ?? ""} (${p.employees?.role ?? ""})\nPeriode: ${p.payroll_periods?.period ?? ""}\nGaji pokok: ${formatIDR(p.base_salary)}\nGaji bersih: ${formatIDR(p.net_pay)}\nStatus: ${p.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}`;
+    const text = `Slip Gaji — PT Vektora Teknologi Nusantara\n${slipName(p)} (${p.employees?.role ?? ""})\nPeriode: ${p.payroll_periods?.period ?? ""}\nGaji pokok: ${formatIDR(p.base_salary)}\nGaji bersih: ${formatIDR(p.net_pay)}\nStatus: ${p.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }
 
@@ -219,7 +228,7 @@ export default function PayslipsPage() {
             {visibleSlips.map((s) => (
               <li key={s.id} className="flex items-center justify-between gap-2 py-2 text-sm">
                 <button onClick={() => setSelectedId(s.id)} className="text-left">
-                  <span className="font-medium">{s.employees?.name ?? "—"}</span>
+                  <span className="font-medium">{slipName(s)}</span>
                   <span className="block text-xs text-slate-500">{s.payroll_periods?.period} · {formatIDR(s.net_pay)} · {s.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}{s.sent_at ? ` · Terkirim ${s.sent_via ?? ""}` : ""}</span>
                 </button>
                 <button onClick={() => setSelectedId(s.id)} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">Lihat</button>
@@ -234,7 +243,7 @@ export default function PayslipsPage() {
             <div className="border-b pb-3">
               <p className="text-xs font-semibold uppercase tracking-widest text-vektora-600">PT Vektora Teknologi Nusantara</p>
               <h3 className="text-lg font-black">Slip Gaji</h3>
-              <p className="text-sm text-slate-500">Periode {selected.payroll_periods?.period} · {selected.employees?.name} — {selected.employees?.role ?? "—"}</p>
+              <p className="text-sm text-slate-500">Periode {selected.payroll_periods?.period} · {slipName(selected)} — {selected.employees?.role ?? "—"}</p>
             </div>
             <div className="mt-3 space-y-1 text-sm">
               <p className="flex justify-between"><span>Gaji pokok</span><b>{formatIDR(selected.base_salary)}</b></p>
@@ -247,7 +256,7 @@ export default function PayslipsPage() {
             </div>
             <div className="mt-6 flex justify-between text-xs text-slate-500">
               <span>Disetujui,<br /><br /><br />_________________<br />PT Vektora</span>
-              <span>Diterima oleh,<br /><br /><br />_________________<br />{selected.employees?.name}</span>
+              <span>Diterima oleh,<br /><br /><br />_________________<br />{slipName(selected)}</span>
             </div>
             <div className="mt-4 flex flex-wrap gap-2 print:hidden">
               <button onClick={() => window.print()} className="rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">Cetak slip</button>

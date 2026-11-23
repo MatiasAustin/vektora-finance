@@ -206,6 +206,8 @@ create table if not exists public.dividend_payouts (
   amount numeric(18,2) not null,
   status text not null default 'belum_dibayar' check (status in ('belum_dibayar', 'sudah_dibayar')),
   paid_at timestamptz,
+  sent_at timestamptz,
+  sent_via text check (sent_via in ('whatsapp', 'email', 'langsung')),
   notes text,
   created_at timestamptz not null default now(),
   constraint dividend_payout_unique unique (brand_id, year, recipient_name)
@@ -281,10 +283,17 @@ create table if not exists public.payroll_periods (
 );
 create index if not exists idx_payroll_brand_period on public.payroll_periods (brand_id, period);
 
+-- KOREKSI 24 Nov 2026 (hapus karyawan): employee_id BOLEH null + ON DELETE
+-- SET NULL — dulu NOT NULL + ON DELETE CASCADE, sehingga menghapus karyawan
+-- ikut MENGHAPUS semua slip gajinya. Sekarang slip lama tetap tersimpan dan
+-- tetap bisa dibuka; namanya dibaca dari snapshot employee_name di bawah.
 create table if not exists public.payslips (
   id uuid primary key default gen_random_uuid(),
   payroll_period_id uuid not null references public.payroll_periods(id) on delete cascade,
-  employee_id uuid not null references public.employees(id) on delete cascade,
+  employee_id uuid references public.employees(id) on delete set null,
+  -- Snapshot nama saat slip dibuat — supaya slip tetap menampilkan nama
+  -- walau karyawan sudah dihapus dari tabel employees.
+  employee_name text,
   base_salary numeric(18,2) not null default 0,
   allowances jsonb not null default '[]'::jsonb,
   deductions jsonb not null default '[]'::jsonb,

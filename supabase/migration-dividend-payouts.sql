@@ -37,17 +37,41 @@ create table if not exists public.dividend_payouts (
   amount numeric(18,2) not null,
   status text not null default 'belum_dibayar' check (status in ('belum_dibayar', 'sudah_dibayar')),
   paid_at timestamptz,
+  sent_at timestamptz,
+  sent_via text check (sent_via in ('whatsapp', 'email', 'langsung')),
   notes text,
   created_at timestamptz not null default now(),
   constraint dividend_payout_unique unique (brand_id, year, recipient_name)
 );
 create index if not exists idx_divpayout_brand_year on public.dividend_payouts (brand_id, year);
+-- Kolom terkirim (24 Nov 2026 — slip dividen): bila tabel sudah dibuat
+-- dari versi migrasi sebelumnya, tambahkan kolomnya di sini.
+alter table public.dividend_payouts
+  add column if not exists sent_at timestamptz,
+  add column if not exists sent_via text check (sent_via in ('whatsapp', 'email', 'langsung'));
 
 alter table public.dividend_payouts enable row level security;
 drop policy if exists "read operations" on public.dividend_payouts;
 create policy "read operations" on public.dividend_payouts for select using (public.current_user_role() in ('admin', 'management', 'komisaris', 'investor'));
 drop policy if exists "write admin management" on public.dividend_payouts;
 create policy "write admin management" on public.dividend_payouts for all using (public.current_user_role() in ('admin', 'management'));
+
+-- ---------- A2. Hapus karyawan: slip lama harus tetap bisa tampil ----------
+-- Dulu: payslips.employee_id NOT NULL + ON DELETE CASCADE — menghapus
+-- karyawan ikut MENGHAPUS semua slip gajinya. Sekarang: employee_id boleh
+-- null + ON DELETE SET NULL, dan nama di-snapshot ke employee_name saat
+-- slip dibuat (diisi juga untuk slip yang sudah ada, dari employees).
+alter table public.payslips
+  add column if not exists employee_name text;
+update public.payslips p
+  set employee_name = e.name
+  from public.employees e
+  where p.employee_id = e.id and p.employee_name is null;
+alter table public.payslips alter column employee_id drop not null;
+alter table public.payslips drop constraint if exists payslips_employee_id_fkey;
+alter table public.payslips
+  add constraint payslips_employee_id_fkey
+  foreign key (employee_id) references public.employees(id) on delete set null;
 
 -- ---------- B. Hutang -> aset terkait ----------
 alter table public.liabilities

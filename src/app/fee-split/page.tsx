@@ -5,7 +5,7 @@ import Link from "next/link";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { computeFeeSplit, summarize } from "@/lib/types";
 import type { Brand, DividendPayout, EmployeeRow, FeeSplitRow, TransactionRow } from "@/lib/types";
-import { formatIDR } from "@/lib/format";
+import { formatDateID, formatIDR } from "@/lib/format";
 import { BrandSelect, Card, EmptySupabase, ReadOnlyNotice } from "@/components/ui";
 import { canEdit, canEditFeeSplit, useAuth } from "@/lib/auth";
 import { useBrandsChannels } from "@/lib/useData";
@@ -29,6 +29,17 @@ export default function FeeSplitPage() {
   const [yearTxns, setYearTxns] = useState<TransactionRow[]>([]);
   const [payouts, setPayouts] = useState<DividendPayout[]>([]);
   const [divMsg, setDivMsg] = useState("");
+  // Slip dividen (24 Nov 2026): kartu slip yang bisa dicetak / dibagikan
+  // per baris pencairan, seperti slip gaji di /payslips.
+  const [selectedPayout, setSelectedPayout] = useState<DividendPayout | null>(null);
+  const [sendVia, setSendVia] = useState<"whatsapp" | "email" | "langsung">("whatsapp");
+  // Slip fee (24 Nov 2026): dokumen tampilan dari data live per bulan —
+  // BUKAN tabel baru. Untuk SEMUA penerima fee/dividen, termasuk jajaran
+  // direktur & komisaris yang tidak punya slip gaji (bagian mereka dari
+  // fee pool, bukan dari monthly_salary).
+  const [feeSlip, setFeeSlip] = useState<{ kind: "fee" | "dividend"; splitId: string; name: string } | null>(null);
+  const [feeSlipMonth, setFeeSlipMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [monthTxns, setMonthTxns] = useState<TransactionRow[]>([]);
 
   async function load() {
     const sb = getSupabase();
@@ -146,6 +157,71 @@ export default function FeeSplitPage() {
     }).eq("id", p.id);
     if (error) setDivMsg("Gagal ubah status: " + error.message);
     else loadAnnual(year);
+  }
+
+  async function updatePayout(p: DividendPayout, patch: Partial<DividendPayout>) {
+    if (!editable) return;
+    const sb = getSupabase();
+    if (!sb) return;
+    const { error } = await sb.from("dividend_payouts").update(patch).eq("id", p.id);
+    if (error) setDivMsg("Gagal simpan: " + error.message);
+    else {
+      setSelectedPayout((cur) => (cur && cur.id === p.id ? { ...cur, ...patch } : cur));
+      loadAnnual(year);
+    }
+  }
+
+  function waLinkDiv(p: DividendPayout): string {
+    const text = `Slip Dividen — PT Vektora Teknologi Nusantara\n${p.recipient_name} · ${p.brands?.name ?? ""}\nTahun: ${p.year}\nBagian dividen: ${p.pct_of_dividend}% = ${formatIDR(p.amount)}\nStatus: ${p.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}`;
+    return `https://wa.me/?text=${encodeURIComponent(text)}`;
+  }
+
+  // ---------- Slip fee per bulan (dokumen tampilan, bukan tabel baru) ----------
+  // Dihitung dari transaksi bulan itu SAJA (query rentang tanggal),
+  // sama polanya dengan laba tahunan di atas.
+  async function loadMonthTxns(brandId: string, month: string) {
+    const sb = getSupabase();
+    if (!sb) return;
+    const [y, m] = month.split("-").map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    const { data } = await sb
+      .from("transactions")
+      .select("*")
+      .eq("brand_id", brandId)
+      .gte("txn_date", `${month}-01`)
+      .lte("txn_date", `${month}-${String(lastDay).padStart(2, "0")}`)
+      .limit(5000);
+    if (data) setMonthTxns(data as TransactionRow[]);
+  }
+  useEffect(() => {
+    if (!feeSlip) return;
+    const split = splits.find((s) => s.id === feeSlip.splitId);
+    if (split) loadMonthTxns(split.brand_id, feeSlipMonth);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feeSlip, feeSlipMonth]);
+
+  // Data slip fee yang sedang dibuka: dicari dari breakdown bulan itu
+  // berdasarkan nama penerima (nama unik per daftar penerima).
+  const feeSlipData = useMemo(() => {
+    if (!feeSlip) return null;
+    const split = splits.find((s) => s.id === feeSlip.splitId);
+    if (!split) return null;
+    const net = summarize(monthTxns.filter((t) => t.brand_id === split.brand_id)).net;
+    const fee = computeFeeSplit(net, split);
+    const row =
+      feeSlip.kind === "fee"
+        ? fee.feeBreakdown.find((r) => r.name === feeSlip.name)
+        : fee.dividendBreakdown.find((r) => r.name === feeSlip.name);
+    if (!row) return null;
+    return { split, net, fee, row };
+  }, [feeSlip, splits, monthTxns]);
+
+  function waLinkFee(): string {
+    if (!feeSlip || !feeSlipData) return "";
+    const { split, row } = feeSlipData;
+    const label = feeSlip.kind === "fee" ? "Management Fee" : "Dividen";
+    const text = `Slip ${label} — PT Vektora Teknologi Nusantara\n${row.name} · ${split.brands?.name ?? ""}\nPeriode: ${feeSlipMonth}\nBagian ${label.toLowerCase()}: ${row.pct}% = ${formatIDR(row.amount)}`;
+    return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }
 
   async function save(e: React.FormEvent, split: FeeSplitRow, patch: Partial<FeeSplitRow>) {
@@ -278,7 +354,8 @@ export default function FeeSplitPage() {
               <div className="rounded-2xl bg-blue-50 p-4"><p className="text-xs font-semibold uppercase text-slate-500">Dividen</p><p className="text-xl font-bold">{formatIDR(fee.dividend)}</p>
                 {fee.dividendBreakdown.map((r) => (
                   <p key={r.name} className="text-sm text-slate-600">{r.name} — {r.pct}%: <b>{formatIDR(r.amount)}</b>
-                    {r.employee_id && <> · <Link href="/payslips" className="font-semibold text-vektora-600 underline">Lihat slip</Link></>}
+                    {r.employee_id && <> · <Link href="/payslips" className="font-semibold text-vektora-600 underline">Lihat slip gaji</Link></>}
+                    {" · "}<button onClick={() => setFeeSlip({ kind: "dividend", splitId: s.id, name: r.name })} className="font-semibold text-vektora-600 underline">Slip</button>
                   </p>
                 ))}
                 {fee.dividendBreakdown.length === 0 && <p className="text-sm text-slate-500">Belum ada penerima dividen.</p>}
@@ -286,7 +363,8 @@ export default function FeeSplitPage() {
               <div className="rounded-2xl bg-blue-50 p-4"><p className="text-xs font-semibold uppercase text-slate-500">Management Fee</p><p className="text-xl font-bold">{formatIDR(fee.managementFee)}</p>
                 {fee.feeBreakdown.map((r) => (
                   <p key={r.name} className="text-sm text-slate-600">{r.name} — {r.pct}% dari fee pool: <b>{formatIDR(r.amount)}</b>
-                    {r.employee_id && <> · <Link href="/payslips" className="font-semibold text-vektora-600 underline">Lihat slip</Link></>}
+                    {r.employee_id && <> · <Link href="/payslips" className="font-semibold text-vektora-600 underline">Lihat slip gaji</Link></>}
+                    {" · "}<button onClick={() => setFeeSlip({ kind: "fee", splitId: s.id, name: r.name })} className="font-semibold text-vektora-600 underline">Slip</button>
                   </p>
                 ))}
                 {fee.feeBreakdown.length === 0 && <p className="text-sm text-slate-500">Belum ada penerima Management Fee.</p>}
@@ -377,12 +455,15 @@ export default function FeeSplitPage() {
                 <ul className="mt-2 space-y-1 text-sm">
                   {paid.map((p) => (
                     <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2">
-                      <span>{p.recipient_name} · {formatIDR(p.amount)} · {p.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}</span>
-                      {editable && (
-                        <button onClick={() => togglePayout(p)} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">
-                          {p.status === "sudah_dibayar" ? "Batalkan" : "Tandai sudah dibayar"}
-                        </button>
-                      )}
+                      <span>{p.recipient_name} · {formatIDR(p.amount)} · {p.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}{p.sent_at ? ` · Terkirim ${p.sent_via ?? ""}` : ""}</span>
+                      <span className="flex items-center gap-2">
+                        <button onClick={() => setSelectedPayout(p)} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">Lihat slip</button>
+                        {editable && (
+                          <button onClick={() => togglePayout(p)} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">
+                            {p.status === "sudah_dibayar" ? "Batalkan" : "Tandai sudah dibayar"}
+                          </button>
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -399,6 +480,97 @@ export default function FeeSplitPage() {
         )}
         {divMsg && <p className="mt-2 text-sm">{divMsg}</p>}
       </Card>
+
+      {/* ---------- Slip dividen (per pencairan) ---------- */}
+      {selectedPayout && (
+        <Card className="payslip-print">
+          <div className="border-b pb-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-vektora-600">PT Vektora Teknologi Nusantara</p>
+            <h3 className="text-lg font-black">Slip Dividen</h3>
+            <p className="text-sm text-slate-500">Tahun {selectedPayout.year} · {selectedPayout.recipient_name} · {selectedPayout.brands?.name ?? ""}</p>
+          </div>
+          <div className="mt-3 space-y-1 text-sm">
+            <p className="flex justify-between"><span>Penerima</span><b>{selectedPayout.recipient_name}</b></p>
+            <p className="flex justify-between"><span>Brand</span><b>{selectedPayout.brands?.name ?? "—"}</b></p>
+            <p className="flex justify-between"><span>Bagian dividen</span><b>{selectedPayout.pct_of_dividend}%</b></p>
+            <p className="flex justify-between border-t pt-2 text-base"><span>Jumlah dividen</span><b>{formatIDR(selectedPayout.amount)}</b></p>
+            <p className="text-xs text-slate-500">Status: {selectedPayout.status === "sudah_dibayar" ? `Sudah dibayar${selectedPayout.paid_at ? " · " + formatDateID(selectedPayout.paid_at) : ""}` : "Belum dibayar"}{selectedPayout.sent_at ? ` · Terkirim ${selectedPayout.sent_via ?? ""} · ${formatDateID(selectedPayout.sent_at)}` : ""}</p>
+            <p className="text-xs text-slate-500">Jumlah dibekukan saat pencairan dibuat — laba sesudah itu tidak mengubah jumlah ini.</p>
+          </div>
+          <div className="mt-6 flex justify-between text-xs text-slate-500">
+            <span>Disetujui,<br /><br /><br />_________________<br />PT Vektora</span>
+            <span>Diterima oleh,<br /><br /><br />_________________<br />{selectedPayout.recipient_name}</span>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2 print:hidden">
+            <button onClick={() => window.print()} className="rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">Cetak slip</button>
+            <a href={waLinkDiv(selectedPayout)} target="_blank" rel="noreferrer" className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Bagikan via WhatsApp</a>
+            <button onClick={() => navigator.clipboard?.writeText(waLinkDiv(selectedPayout))} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold">Salin tautan slip</button>
+            {editable && (
+              <>
+                <select value={sendVia} onChange={(e) => setSendVia(e.target.value as "whatsapp" | "email" | "langsung")} className="rounded-xl border px-2 py-1 text-sm">
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="email">Email</option>
+                  <option value="langsung">Langsung</option>
+                </select>
+                <button onClick={() => updatePayout(selectedPayout, { sent_at: new Date().toISOString(), sent_via: sendVia })} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold">Tandai terkirim</button>
+                <button
+                  onClick={() =>
+                    updatePayout(
+                      selectedPayout,
+                      selectedPayout.status === "sudah_dibayar"
+                        ? { status: "belum_dibayar", paid_at: null }
+                        : { status: "sudah_dibayar", paid_at: new Date().toISOString() }
+                    )
+                  }
+                  className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold"
+                >
+                  {selectedPayout.status === "sudah_dibayar" ? "Batalkan dibayar" : "Tandai sudah dibayar"}
+                </button>
+              </>
+            )}
+            <button onClick={() => setSelectedPayout(null)} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold">Tutup</button>
+          </div>
+        </Card>
+      )}
+
+      {/* ---------- Slip fee per bulan (semua penerima, termasuk direktur) ---------- */}
+      {feeSlip && feeSlipData && (
+        <Card className="payslip-print">
+          <div className="border-b pb-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-vektora-600">PT Vektora Teknologi Nusantara</p>
+            <h3 className="text-lg font-black">Slip {feeSlip.kind === "fee" ? "Management Fee" : "Dividen"}</h3>
+            <p className="text-sm text-slate-500">{feeSlipData.row.name} · {feeSlipData.split.brands?.name ?? ""}</p>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm print:hidden">
+            <label>Periode
+              <input type="month" value={feeSlipMonth} onChange={(e) => setFeeSlipMonth(e.target.value)} className="ml-2 rounded-xl border px-2 py-1" />
+            </label>
+          </div>
+          <div className="mt-3 space-y-1 text-sm">
+            <p className="flex justify-between"><span>Penerima</span><b>{feeSlipData.row.name}</b></p>
+            <p className="flex justify-between"><span>Brand</span><b>{feeSlipData.split.brands?.name ?? "—"}</b></p>
+            <p className="flex justify-between"><span>Periode</span><b>{feeSlipMonth}</b></p>
+            <p className="flex justify-between"><span>Laba bersih brand bulan itu</span><b>{formatIDR(feeSlipData.net)}</b></p>
+            <p className="flex justify-between"><span>Bagian {feeSlip.kind === "fee" ? "Management Fee" : "dividen"}</span><b>{feeSlipData.row.pct}%</b></p>
+            <p className="flex justify-between border-t pt-2 text-base"><span>Jumlah</span><b>{formatIDR(feeSlipData.row.amount)}</b></p>
+            {feeSlipData.net <= 0 && <p className="text-xs text-amber-700">Belum ada laba bulan {feeSlipMonth} — bagian Rp0.</p>}
+            <p className="text-xs text-slate-500">
+              Slip ini dihitung dari transaksi live bulan {feeSlipMonth} (bukan dokumen tersimpan) — angka
+              berubah bila ada transaksi baru di bulan itu. Bagian ini dari {feeSlip.kind === "fee" ? "Management Fee" : "dividen"}, bukan gaji bulanan.
+            </p>
+          </div>
+          <div className="mt-6 flex justify-between text-xs text-slate-500">
+            <span>Disetujui,<br /><br /><br />_________________<br />PT Vektora</span>
+            <span>Diterima oleh,<br /><br /><br />_________________<br />{feeSlipData.row.name}</span>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2 print:hidden">
+            <button onClick={() => window.print()} className="rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">Cetak slip</button>
+            <a href={waLinkFee()} target="_blank" rel="noreferrer" className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Bagikan via WhatsApp</a>
+            <button onClick={() => navigator.clipboard?.writeText(waLinkFee())} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold">Salin tautan slip</button>
+            <button onClick={() => setFeeSlip(null)} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold">Tutup</button>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

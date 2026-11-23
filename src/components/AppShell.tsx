@@ -61,7 +61,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         )}
 
-        <div className="bg-gradient-to-r from-vektora-500 via-vektora-600 to-vektora-900 px-4 pb-16 pt-5 text-white sm:px-6 md:px-10 md:pt-6">
+        {/* Perbaikan 24 Nov 2026: hero SEBELUMNYA pakai pb-16 + konten
+            -mt-10 (konten "naik" menimpa gradient). Itu bikin judul tiap
+            halaman ("Halo, ...", "Ringkasan keuangan", label Brand, tombol)
+            yang teksnya gelap jadi numpang di atas gradient biru — tidak
+            terbaca, overlay tidak jelas. Sekarang tanpa overlap: hero
+            selesai dulu, konten mulai di bawahnya di latar terang. */}
+        <div className="bg-gradient-to-r from-vektora-500 via-vektora-600 to-vektora-900 px-4 pb-6 pt-5 text-white sm:px-6 md:px-10 md:pt-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-widest text-blue-200">
@@ -96,7 +102,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </div>
-        <div className="mx-auto -mt-10 max-w-6xl px-3 pb-16 sm:px-4 md:px-6">{children}</div>
+        <div className="mx-auto max-w-6xl px-3 pb-16 pt-6 sm:px-4 md:px-6">{children}</div>
       </main>
     </div>
   );

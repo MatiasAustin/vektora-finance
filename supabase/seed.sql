@@ -2,8 +2,11 @@
 -- VEKTORA FINANCE — seed.sql
 -- SEED DATA — angka nyata WhereIsIt November 2026 dari sheet
 -- (Income & Expend 2026 + Laporan Keuangan WhereIsIt, per 18 Nov 2026).
--- Jalankan SETELAH schema.sql. Aman di-run ulang? Tidak — hapus dulu
--- baris seed bila ingin re-seed (lihat README).
+-- Jalankan SETELAH schema.sql. AMAN di-run ulang (24 Nov 2026):
+-- semua blok insert pakai guard NOT EXISTS, jadi tidak menduplikat
+-- data bila di-run 2x. Perbaikan 24 Nov 01:59: kolom dari VALUES
+-- harus di-cast eksplisit (brand_id::uuid, tanggal::date) — tanpa
+-- cast, Postgres error 42883 "operator does not exist: uuid = text".
 -- Moonimo di-seed kosong (brand saja, belum ada transaksi).
 -- Gaji karyawan TIDAK di-seed: belum ada angka terkonfirmasi — isi di
 -- halaman /employees. Jangan tebak gaji.
@@ -61,7 +64,7 @@ where c.brand_id = '11111111-1111-1111-1111-111111111111' and c.slug = 'direct-t
 -- Idempotent (24 Nov 2026): guard NOT EXISTS per baris — seed.sql aman
 -- di-run ulang (mis. setelah akun Auth dibuat), tidak menduplikat data.
 insert into public.transactions (brand_id, kind, txn_date, description, category, amount, payment_method, notes, payment_status)
-select v.brand_id, v.kind, v.txn_date, v.description, v.category, v.amount, v.payment_method, v.notes, v.payment_status
+select v.brand_id::uuid, v.kind, v.txn_date::date, v.description, v.category, v.amount, v.payment_method, v.notes, v.payment_status
 from (values
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-02', 'Spon', 'Operasional', 12000, 'Tunai', null, 'sudah_dibayar'),
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-03', 'Acrylic Marker', 'Operasional', 43123, 'Tunai', null, 'sudah_dibayar'),
@@ -89,13 +92,13 @@ from (values
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-17', 'Hosting / Domain Hostinger', 'Operasional', 23545, 'QRIS', 'Xendit — domain, bayar sebelum 24/11/2026', 'sudah_dibayar'),
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-17', 'Bensin Mio — SPBU Jendral 240 Karawang', 'Operasional', 20000, 'QRIS', 'blu QRIS 21:41', 'sudah_dibayar')
 ) as v(brand_id, kind, txn_date, description, category, amount, payment_method, notes, payment_status)
-where not exists (select 1 from public.transactions t where t.brand_id = v.brand_id and t.kind = v.kind and t.txn_date = v.txn_date and t.description = v.description and t.amount = v.amount);
+where not exists (select 1 from public.transactions t where t.brand_id = v.brand_id::uuid and t.kind = v.kind and t.txn_date = v.txn_date::date and t.description = v.description and t.amount = v.amount);
 
 -- ---------- Pengeluaran BELUM REIMBURSE (12 item Meeting Calon BA, Rp437.700) ----------
 -- Satu-satunya Belum reimburse di Nov 2026 — sumber: Notion
 -- "Pengeluaran Operasional - Meeting Calon BA - 9 November 2026".
 insert into public.transactions (brand_id, kind, txn_date, description, category, amount, payment_method, notes, payment_status)
-select v.brand_id, v.kind, v.txn_date, v.description, v.category, v.amount, v.payment_method, v.notes, v.payment_status
+select v.brand_id::uuid, v.kind, v.txn_date::date, v.description, v.category, v.amount, v.payment_method, v.notes, v.payment_status
 from (values
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-09', 'Tiket kereta — Meeting Calon BA', 'Transportasi', 6000, null, 'Notion Meeting Calon BA 9 Nov', 'belum_reimburse'),
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-09', 'Le Minerale — Meeting Calon BA', 'Makan/minum', 14000, null, 'Notion Meeting Calon BA 9 Nov', 'belum_reimburse'),
@@ -110,26 +113,26 @@ from (values
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-09', 'Makan malam — Meeting Calon BA', 'Makan/minum', 38700, null, 'Notion Meeting Calon BA 9 Nov', 'belum_reimburse'),
   ('11111111-1111-1111-1111-111111111111', 'expense', '2026-11-09', 'Trial print label — Meeting Calon BA', 'Produksi/print test', 20000, null, 'Notion Meeting Calon BA 9 Nov', 'belum_reimburse')
 ) as v(brand_id, kind, txn_date, description, category, amount, payment_method, notes, payment_status)
-where not exists (select 1 from public.transactions t where t.brand_id = v.brand_id and t.kind = v.kind and t.txn_date = v.txn_date and t.description = v.description and t.amount = v.amount);
+where not exists (select 1 from public.transactions t where t.brand_id = v.brand_id::uuid and t.kind = v.kind and t.txn_date = v.txn_date::date and t.description = v.description and t.amount = v.amount);
 
 -- ---------- Aset investasi (total Rp16.161.043) ----------
 insert into public.assets (brand_id, name, category, qty, unit_price, total_price, purchased_at, condition, notes)
-select v.brand_id, v.name, v.category, v.qty, v.unit_price, v.total_price, v.purchased_at, v.condition, v.notes
+select v.brand_id::uuid, v.name, v.category, v.qty, v.unit_price, v.total_price, v.purchased_at::date, v.condition, v.notes
 from (values
   ('11111111-1111-1111-1111-111111111111', 'Bambulab P2S Combo', 'Printer 3D', 1, 10000555, 10000555, '2026-11-16', 'Baru', 'Nota 3DZ/AKE/103/02620, 3D Zaiku — Rp10.000.555 dari modal/investasi; Rp5.380.000 sisanya pinjaman Febri'),
   ('11111111-1111-1111-1111-111111111111', 'eSUN PETG Basic Filament White x8', 'Filamen / Investasi', 8, 123000, 892528, '2026-11-16', 'Baru', 'Shopee 3D Zaiku, order 261025HQQSKYOP — total Rp892.528 via SPayLater; hutang SPayLater dibayar INVESTOR, bukan perusahaan'),
   ('11111111-1111-1111-1111-111111111111', 'Bambulab A1 High Speed 3D Printer', 'Printer 3D', 1, 5267960, 5267960, '2026-11-15', 'Baru', 'Shopee 3D Zaiku — sudah dibeli, barangnya ada')
 ) as v(brand_id, name, category, qty, unit_price, total_price, purchased_at, condition, notes)
-where not exists (select 1 from public.assets a where a.brand_id = v.brand_id and a.name = v.name and a.purchased_at = v.purchased_at and a.total_price = v.total_price);
+where not exists (select 1 from public.assets a where a.brand_id = v.brand_id::uuid and a.name = v.name and a.purchased_at = v.purchased_at::date and a.total_price = v.total_price);
 
 -- ---------- Hutang (hanya hutang perusahaan; PETG TIDAK masuk sini) ----------
 insert into public.liabilities (brand_id, creditor, amount, remaining_amount, due_date, monthly_installment, months, paid_by, status, notes)
-select v.brand_id, v.creditor, v.amount, v.remaining_amount, v.due_date, v.monthly_installment, v.months, v.paid_by, v.status, v.notes
+select v.brand_id::uuid, v.creditor, v.amount, v.remaining_amount, v.due_date::date, v.monthly_installment, v.months, v.paid_by, v.status, v.notes
 from (values
   ('11111111-1111-1111-1111-111111111111', 'Febri', 5380000, 5380000, '2027-11-16', 448333, 12, 'company', 'aktif',
    'Pinjaman dari Pak Febri untuk Bambulab P2S Combo — BUKAN investasi/modal saham, terpisah dari penyertaan modal Febri; amortisasi 12 bln; transfer Rp5.380.000 ke Joy Abigail 17/11')
 ) as v(brand_id, creditor, amount, remaining_amount, due_date, monthly_installment, months, paid_by, status, notes)
-where not exists (select 1 from public.liabilities l where l.brand_id = v.brand_id and l.creditor = v.creditor and l.amount = v.amount and l.due_date = v.due_date);
+where not exists (select 1 from public.liabilities l where l.brand_id = v.brand_id::uuid and l.creditor = v.creditor and l.amount = v.amount and l.due_date = v.due_date::date);
 
 -- ---------- Lemuel: Manager Marketing (gaji BELUM diisi — 0, jangan ditebak) ----------
 -- BUKAN OPEX (Mattin, 24 Nov 2026): is_management=true → gajinya dibayar

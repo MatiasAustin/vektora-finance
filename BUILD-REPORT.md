@@ -756,3 +756,16 @@ Mattin: "mayar uang pribadi matias yg nyangkut, ga masuk di data keuangan pt ini
   transaksi Nov 25 income + 48 expense = 73 baris.
 - Channel 'mayar' tetap dibuat di §6b (payment channel sah untuk PT nanti)
   — yang dihapus hanya baris incomenya.
+
+## Koreksi 24 Nov 11:21 — 3 order PO baru masuk sheet + final-setup.sql
+Cek PO harian (check_po.py, cron whereisit-po-check-daily 20:46 WIB)
+menemukan file PO berisi 28 order Lunas, bukan 25. Tiga order baru
+(#26 C.N. Pranoto 21 Nov Rp150.000 Clicky, #27 Lena 21 Nov Rp178.845
+Shopee, #28 Ari Pramuditya 23 Nov Rp220.000 Clicky; total Rp548.845)
+dimasukkan ke sheet (baris income 31-33) atas perintah Mattin.
+Sheet November kini: Income Rp4.727.845 / Pengeluaran Rp2.165.738 /
+Saldo Rp2.562.107 / Belum reimburse Rp605.423.
+`final-setup.sql` + `seed-latest-2026-11-24.sql` ikut diupdate (20 order
+PO, total Rp3.107.845; rekonsiliasi baru income 4.727.845, saldo
+2.562.107, 28 income + 48 expense = 76 baris) supaya saat Mattin
+menjalankan file final, app ikut sinkron dengan sheet.

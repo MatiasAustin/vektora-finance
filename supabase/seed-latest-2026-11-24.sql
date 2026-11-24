@@ -17,9 +17,11 @@
 -- APA YANG BERUBAH SEJAK seed.sql (18 Nov 2026):
 --   1. Income sheet: 7 order Rp1.470.000 -> 8 order Rp1.620.000
 --      (tambah "Afr" Rp150.000, 12 Nov, ref 2611110W06V5PAA).
---   2. PO list: 25 order, SEMUA Lunas, total DP Rp4.189.000
---      (27 pcs). 17 order di antaranya BELUM ada di sheet/seed:
---      Rp2.559.000 (lihat bagian 3).
+--   2. PO list: 28 order, SEMUA Lunas. 20 order di antaranya
+--      (Rp3.107.845) masuk lewat bagian 3 — 17 order masuk sheet
+--      24 Nov 02:58, 3 order baru (#26 C.N. Pranoto Rp150.000,
+--      #27 Lena Rp178.845, #28 Ari Pramuditya Rp220.000) ketemu
+--      cek harian 24 Nov 03:10 dan masuk sheet 11:21.
 --   3. Pengeluaran sheet: tambah Cutter Rp25.000 + ongkir JNT
 --      Rp35.000 (keduanya 18 Nov, Status Bayar di sheet masih KOSONG).
 --   4. Status Bayar di sheet BERUBAH untuk 3 baris lama, yang
@@ -29,11 +31,11 @@
 --
 -- REKONSILIASI SETELAH FILE INI DIJALANKAN (cek pakai query di
 -- bawah, harus cocok persis dengan sheet 24 Nov 2026):
---   Income total Nov 2026      = Rp4.179.000
---     (1.470.000 seed + 150.000 Afr + 2.559.000 PO baru)
+--   Income total Nov 2026      = Rp4.727.845
+--     (1.470.000 seed + 150.000 Afr + 3.107.845 PO baru)
 --   Pengeluaran terhitung       = Rp1.202.882  (cocok sheet D2)
 --   Belum reimburse            = Rp605.423    (cocok sheet D3)
---   Saldo                      = Rp2.976.118
+--   Saldo                      = Rp3.524.963
 --
 -- PERBAIKAN 24 Nov 2026 (bug yang bikin data terbaru tidak muncul):
 --   Bagian 3b memakai channel_slug 'Shopee'/'Threads'/'Clicky'
@@ -41,11 +43,11 @@
 --   'shopee'/'threads'/'clicky' (huruf kecil). Postgres membandingkan
 --   teks case-sensitive, jadi join `c.slug = d.channel_slug` TIDAK
 --   PERNAH cocok — INSERT ... SELECT itu mengembalikan 0 baris TANPA
---   error, transaksi tetap commit, dan 17 income PO (Rp2.559.000)
+--   error, transaksi tetap commit, dan 20 income PO (Rp3.107.845)
 --   diam-diam tidak masuk. Yang sudah terlanjur jalan script versi
 --   lama: bagian lain (Afr, Cutter, JNT, koreksi Status Bayar) SUDAH
 --   masuk — cukup jalanin ulang file ini (versi perbaikan): guard
---   NOT EXISTS mencegah duplikat, dan 17 income yang hilang akan
+--   NOT EXISTS mencegah duplikat, dan 20 income yang hilang akan
 --   masuk. Join sekarang pakai lower(d.channel_slug) supaya typo
 --   kapital tidak bisa mengulang bug ini.
 --
@@ -118,7 +120,7 @@ where c.brand_id = '11111111-1111-1111-1111-111111111111' and c.slug = 'shopee'
     select 1 from public.transactions t where t.ref = '2611110W06V5PAA'
   );
 
--- 3b. 17 order PO yang belum ada di sheet/seed — total Rp2.559.000.
+-- 3b. 20 order PO yang belum ada di sheet/seed — total Rp3.107.845.
 --     Semua Lunas. Channel & tanggal sesuai PO. Metode bayar yang
 --     tidak tercatat di PO dibiarkan NULL (jangan ditebak).
 insert into public.transactions (brand_id, channel_id, kind, txn_date, description, category, amount, payment_method, ref, notes, payment_status)
@@ -141,7 +143,10 @@ from public.channels c,
     ('2026-11-20'::date, 'Penjualan Strava Keychain — TAR YYJOE', 119000, 'clicky', null, null, 'PO #22 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
     ('2026-11-20'::date, 'Penjualan Strava Keychain — Abiza', 220000, 'clicky', null, null, 'PO #23 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
     ('2026-11-20'::date, 'Penjualan Strava Keychain — Almer Panji P', 150000, 'clicky', null, null, 'PO #24 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-20'::date, 'Penjualan Strava Keychain — Aries (Batman JKT)', 150000, 'clicky', null, null, 'PO #25 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.')
+    ('2026-11-20'::date, 'Penjualan Strava Keychain — Aries (Batman JKT)', 150000, 'clicky', null, null, 'PO #25 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-21'::date, 'Penjualan Strava Keychain — C.N. Pranoto', 150000, 'clicky', null, null, 'PO #26 — Lunas, order via Clicky. Ketemu cek PO harian 24 Nov 03:10, masuk sheet 11:21.'),
+    ('2026-11-21'::date, 'Penjualan Strava Keychain — Lena', 178845, 'shopee', null, 'Shopee', 'PO #27 — Lunas, order via Shopee. Ketemu cek PO harian 24 Nov 03:10, masuk sheet 11:21.'),
+    ('2026-11-23'::date, 'Penjualan Strava Keychain — Ari Pramuditya', 220000, 'clicky', null, null, 'PO #28 — Lunas, order via Clicky. Ketemu cek PO harian 24 Nov 03:10, masuk sheet 11:21.')
   ) as d(txn_date, description, amount, channel_slug, ref, payment_method, notes)
 where c.brand_id = '11111111-1111-1111-1111-111111111111' and c.slug = lower(d.channel_slug)
   and not exists (
@@ -185,8 +190,8 @@ commit;
 -- ================= VERIFIKASI (jalankan terpisah setelah script) =================
 -- select * from public.v_brand_monthly_summary
 --   where brand_id = '11111111-1111-1111-1111-111111111111' and month = '2026-11';
--- Harus: income 4179000, expense_counted 1202882,
---        belum_reimburse 605423, net 2976118.
+-- Harus: income 4727845, expense_counted 1202882,
+--        belum_reimburse 605423, net 3524963.
 --
 -- select count(*) filter (where kind = 'income') as income_rows,
 --        count(*) filter (where kind = 'expense') as expense_rows

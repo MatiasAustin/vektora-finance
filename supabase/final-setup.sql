@@ -20,23 +20,22 @@
 --   1. SKEMA (schema.sql): semua tabel + kolom baru + RLS + view.
 --   2. DEDUPE (dedupe-duplicates.sql): bersihkan duplikat seed 2x.
 --   3. SEED (seed.sql): data awal Nov 2026 + fee split ikut sheet.
---   4. SEED-LATEST (seed-latest-2026-11-24.sql): Afr + 17 income PO.
+--   4. SEED-LATEST (seed-latest-2026-11-24.sql): Afr + 20 income PO.
 --   5. MIGRASI (migration-dividend-payouts.sql): dividend_payouts
 --      + kolom bayar-hutang + perbaikan FK payslips.
 --   6. SEED-WA TERKOREKSI (seed-wa-2026-11-24.sql): 9 expense,
 --      0 income; 2 income double + 1 dana pribadi DIHAPUS (lihat §6).
 --
 -- REKONSILIASI SETELAH DIJALANKAN (WhereIsIt, Nov 2026):
---   Income total               = Rp4.179.000
+--   Income total               = Rp4.727.845
 --   Pengeluaran terhitung      = Rp2.165.738
 --   Belum reimburse            = Rp605.423
---   Saldo                      = Rp2.013.262
+--   Saldo                      = Rp2.562.107
 --   Aset                       = 3 baris (total Rp16.161.043)
 --   Hutang                     = 1 baris (Febri Rp5.380.000)
---   Transaksi Nov 2026         = 25 income + 48 expense = 73 baris
--- Cocok dengan sheet November setelah koreksi 24 Nov 2026:
---   income sheet Rp1.620.000 — selisih Rp2.559.000 adalah 17 order
---   PO yang hanya ada di app/PO, belum masuk sheet.
+--   Transaksi Nov 2026         = 28 income + 48 expense = 76 baris
+-- Cocok dengan sheet November 24 Nov 2026 (income sheet Rp4.727.845
+-- setelah 3 order PO baru #26-#28 masuk 11:21 WIB).
 --
 -- PERBEDAAN DARI FILE LAMA (diperbaiki di sini):
 --   - Urutan CREATE TABLE diperbaiki (transactions dibuat SETELAH
@@ -900,9 +899,11 @@ where not exists (select 1 from public.fee_splits f where f.brand_id = '22222222
 -- APA YANG BERUBAH SEJAK §3:
 --   1. Income sheet: 7 order Rp1.470.000 -> 8 order Rp1.620.000
 --      (tambah "Afr" Rp150.000, 12 Nov, ref 2611110W06V5PAA).
---   2. PO list: 25 order, SEMUA Lunas, total DP Rp4.189.000
---      (27 pcs). 17 order di antaranya BELUM ada di sheet/seed:
---      Rp2.559.000 (lihat bagian 3 di bawah).
+--   2. PO list: 28 order, SEMUA Lunas. 20 order di antaranya
+--      (Rp3.107.845) masuk lewat bagian 3 di bawah — 17 order
+--      masuk sheet 24 Nov 02:58, 3 order baru (#26 C.N. Pranoto
+--      Rp150.000, #27 Lena Rp178.845, #28 Ari Pramuditya Rp220.000)
+--      ketemu cek harian 24 Nov 03:10 dan masuk sheet 11:21.
 --   3. Pengeluaran sheet: tambah Cutter Rp25.000 + ongkir JNT
 --      Rp35.000 (keduanya 18 Nov, Status Bayar di sheet masih KOSONG).
 --   4. Status Bayar di sheet BERUBAH untuk 3 baris lama, yang
@@ -914,7 +915,7 @@ where not exists (select 1 from public.fee_splits f where f.brand_id = '22222222
 -- lower(d.channel_slug) — Postgres membandingkan teks case-sensitive,
 -- dan slug di tabel channels huruf kecil ('shopee'/'threads'/
 -- 'clicky'), sedangkan nilai lama sempat kapital ('Shopee'/
--- 'Threads'/'Clicky') sehingga 17 income PO diam-diam tidak masuk.
+-- 'Threads'/'Clicky') sehingga 20 income PO diam-diam tidak masuk.
 -- ============================================================
 
 -- ================= 1. Channel baru (PO pakai channel baru) =================
@@ -967,9 +968,11 @@ where c.brand_id = '11111111-1111-1111-1111-111111111111' and c.slug = 'shopee'
     select 1 from public.transactions t where t.ref = '2611110W06V5PAA'
   );
 
--- 3b. 17 order PO yang belum ada di sheet/seed — total Rp2.559.000.
+-- 3b. 20 order PO yang belum ada di sheet/seed — total Rp3.107.845.
 --     Semua Lunas. Channel & tanggal sesuai PO. Metode bayar yang
 --     tidak tercatat di PO dibiarkan NULL (jangan ditebak).
+--     17 order pertama masuk sheet 24 Nov 02:58; 3 order terakhir
+--     (#26-#28) ketemu cek harian 24 Nov 03:10, masuk sheet 11:21.
 insert into public.transactions (brand_id, channel_id, kind, txn_date, description, category, amount, payment_method, ref, notes, payment_status)
 select '11111111-1111-1111-1111-111111111111', c.id, 'income', d.txn_date, d.description, 'Penjualan Keychain', d.amount, d.payment_method, d.ref, d.notes, 'sudah_dibayar'
 from public.channels c,
@@ -990,7 +993,10 @@ from public.channels c,
     ('2026-11-20'::date, 'Penjualan Strava Keychain — TAR YYJOE', 119000, 'clicky', null, null, 'PO #22 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
     ('2026-11-20'::date, 'Penjualan Strava Keychain — Abiza', 220000, 'clicky', null, null, 'PO #23 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
     ('2026-11-20'::date, 'Penjualan Strava Keychain — Almer Panji P', 150000, 'clicky', null, null, 'PO #24 — Lunas, status Produksi. Metode bayar tidak tercatat di PO.'),
-    ('2026-11-20'::date, 'Penjualan Strava Keychain — Aries (Batman JKT)', 150000, 'clicky', null, null, 'PO #25 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.')
+    ('2026-11-20'::date, 'Penjualan Strava Keychain — Aries (Batman JKT)', 150000, 'clicky', null, null, 'PO #25 — Lunas, status Konfirmasi Desain. Metode bayar tidak tercatat di PO.'),
+    ('2026-11-21'::date, 'Penjualan Strava Keychain — C.N. Pranoto', 150000, 'clicky', null, null, 'PO #26 — Lunas, order via Clicky. Ketemu cek PO harian 24 Nov 03:10, masuk sheet 11:21.'),
+    ('2026-11-21'::date, 'Penjualan Strava Keychain — Lena', 178845, 'shopee', null, 'Shopee', 'PO #27 — Lunas, order via Shopee. Ketemu cek PO harian 24 Nov 03:10, masuk sheet 11:21.'),
+    ('2026-11-23'::date, 'Penjualan Strava Keychain — Ari Pramuditya', 220000, 'clicky', null, null, 'PO #28 — Lunas, order via Clicky. Ketemu cek PO harian 24 Nov 03:10, masuk sheet 11:21.')
   ) as d(txn_date, description, amount, channel_slug, ref, payment_method, notes)
 where c.brand_id = '11111111-1111-1111-1111-111111111111' and c.slug = lower(d.channel_slug)
   and not exists (
@@ -1250,15 +1256,15 @@ commit;
 -- ============================================================
 -- select * from public.v_brand_monthly_summary
 --   where brand_id = '11111111-1111-1111-1111-111111111111' and month = '2026-11';
--- Harus: income 4179000, expense_counted 2165738,
---        belum_reimburse 605423, net 2013262.
+-- Harus: income 4727845, expense_counted 2165738,
+--        belum_reimburse 605423, net 2562107.
 --
 -- select count(*) filter (where kind = 'income') as income_rows,
 --        count(*) filter (where kind = 'expense') as expense_rows
 --   from public.transactions
 --   where brand_id = '11111111-1111-1111-1111-111111111111'
 --     and txn_date >= '2026-11-01' and txn_date < '2026-12-01';
--- Harus: income_rows 25, expense_rows 48.
+-- Harus: income_rows 28, expense_rows 48.
 --
 -- select count(*) as assets_rows, sum(total_price) as assets_total
 --   from public.assets
@@ -1276,5 +1282,5 @@ commit;
 --
 -- select * from public.v_investor_summary
 --   where brand_id = '11111111-1111-1111-1111-111111111111';
--- Harus: income_total 4179000, expense_counted_total 2165738,
+-- Harus: income_total 4727845, expense_counted_total 2165738,
 --        assets_total 16161043, company_debt 5380000.

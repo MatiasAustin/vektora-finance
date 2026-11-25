@@ -8,8 +8,8 @@ import { canEdit, canViewOperations, useAuth } from "@/lib/auth";
 import { compressLogoFile, getBrandLogo, setLocalBrandLogo } from "@/lib/brandLogo";
 
 export default function BrandsPage() {
-  const { role, loading: authLoading } = useAuth();
-  const editable = canEdit(role);
+  const { role, profile, loading: authLoading } = useAuth();
+  const editable = canEdit(role, profile);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");

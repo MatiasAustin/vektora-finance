@@ -45,17 +45,62 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 export const ALL_ROLES: Role[] = ["admin", "management", "komisaris", "investor", "karyawan"];
 
+const ACCOUNTANT_STORAGE_KEY = "vektora_accountant_ids_v1";
+
+/** Daftar ID profil Management yang ditunjuk sebagai Accountant (disimpan lokal sebagai cadangan instan bila kolom DB belum dimigrasi). */
+export function getLocalAccountantIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(ACCOUNTANT_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function setLocalAccountantId(profileId: string, appointed: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    const current = new Set(getLocalAccountantIds());
+    if (appointed) current.add(profileId);
+    else current.delete(profileId);
+    localStorage.setItem(ACCOUNTANT_STORAGE_KEY, JSON.stringify(Array.from(current)));
+  } catch {
+    // Ignore
+  }
+}
+
+/** Cek apakah seorang profil adalah Accountant yang ditunjuk. */
+export function isAppointedAccountant(profile?: Profile | null): boolean {
+  if (!profile) return false;
+  if (profile.role === "admin") return true;
+  if (profile.role !== "management") return false;
+  if (typeof profile.is_accountant === "boolean") return profile.is_accountant;
+  return getLocalAccountantIds().includes(profile.id);
+}
+
 export interface AuthState {
   user: User | null;
   profile: Profile | null;
   role: Role | null;
+  isAccountant: boolean;
   loading: boolean;
   configured: boolean;
 }
 
-/** Boleh tulis (tambah/edit/hapus) data operasional? */
-export function canEdit(role: Role | null): boolean {
-  return role === "admin" || role === "management";
+/**
+ * Boleh tulis (tambah/edit/hapus transaksi, rilis slip gaji, ubah data operasional)?
+ * ATURAN BARU: Hanya Admin (Dirut) ATAU Management yang ditunjuk sebagai Accountant.
+ * Management biasa hanya bisa melihat info & arus kas (Read-Only) seperti Komisaris/Investor.
+ */
+export function canEdit(role: Role | null, profile?: Profile | null): boolean {
+  if (role === "admin") return true;
+  if (role === "management") {
+    return isAppointedAccountant(profile);
+  }
+  return false;
 }
 
 /** Boleh ubah konfigurasi fee split? Hanya admin. */
@@ -132,10 +177,13 @@ export function useAuth(): AuthState & { signOut: () => Promise<void>; refresh: 
     setProfile(null);
   }, []);
 
+  const role = (profile?.role as Role | null) ?? null;
+
   return {
     user,
     profile,
-    role: (profile?.role as Role | null) ?? null,
+    role,
+    isAccountant: isAppointedAccountant(profile),
     loading,
     configured: isSupabaseConfigured,
     signOut,

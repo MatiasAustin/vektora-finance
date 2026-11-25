@@ -232,9 +232,11 @@ create table if not exists public.profiles (
   role app_role not null default 'karyawan',
   brand_ids uuid[],
   employee_id uuid references public.employees(id) on delete set null,
+  is_accountant boolean not null default false,
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
+alter table public.profiles add column if not exists is_accountant boolean not null default false;
 create index if not exists idx_profiles_role on public.profiles (role);
 create index if not exists idx_profiles_employee on public.profiles (employee_id);
 

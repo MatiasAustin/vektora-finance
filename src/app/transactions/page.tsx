@@ -48,7 +48,7 @@ const PAYMENT_METHODS = [
 function TransactionsContent() {
   const searchParams = useSearchParams();
   const { user, profile, role, loading: authLoading } = useAuth();
-  const editable = canEdit(role);
+  const editable = canEdit(role, profile);
   const canDelete = canManageTeam(role);
   const { brands } = useBrandsChannels();
   const [rows, setRows] = useState<TransactionRow[]>([]);

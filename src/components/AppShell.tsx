@@ -55,6 +55,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   {role && (
                     <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-semibold leading-none text-blue-100 backdrop-blur-md">
                       {ROLE_LABELS[role]}
+                      {role === "management" && profile && (profile.is_accountant ? " · Accountant" : " · Read-Only")}
                     </span>
                   )}
                 </div>

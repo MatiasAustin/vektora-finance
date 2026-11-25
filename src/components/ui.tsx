@@ -104,8 +104,7 @@ export function ReadOnlyNotice({ role }: { role?: string | null }) {
   return (
     <Card className="border-blue-400/25 bg-blue-950/40">
       <p className="text-xs text-blue-100/90">
-        <b className="text-white">Mode baca saja.</b> Peran kamu{role ? ` (${role})` : ""} hanya boleh melihat data —
-        tombol tambah / ubah / hapus disembunyikan. Minta admin bila ada yang perlu diubah.
+        <b className="text-white">Mode Lihat Info &amp; Arus Kas (Read-Only).</b> Akun kamu{role ? ` (${role})` : ""} hanya memiliki akses melihat informasi &amp; laporan arus kas. Hanya <b>Admin (Dirut)</b> atau <b>Accountant (Management yang ditunjuk)</b> yang dapat menambah/mengedit transaksi atau merilis slip gaji.
       </p>
     </Card>
   );

@@ -11,7 +11,7 @@ import { canEdit, useAuth } from "@/lib/auth";
 
 export default function DashboardPage() {
   const { role, profile, loading: authLoading } = useAuth();
-  const editable = canEdit(role);
+  const editable = canEdit(role, profile);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [txns, setTxns] = useState<TransactionRow[]>([]);
   const [assets, setAssets] = useState<AssetRow[]>([]);

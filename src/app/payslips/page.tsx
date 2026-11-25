@@ -81,7 +81,7 @@ export default function PayslipsPage() {
     () => visibleSlips.find((s) => s.id === selectedId) ?? visibleSlips[0] ?? null,
     [visibleSlips, selectedId]
   );
-  const editable = canEdit(role);
+  const editable = canEdit(role, profile);
 
   async function generate(e: React.FormEvent) {
     e.preventDefault();

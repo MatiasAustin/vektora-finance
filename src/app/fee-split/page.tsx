@@ -25,7 +25,7 @@ type SplitPctDraft = {
 };
 
 export default function FeeSplitPage() {
-  const { role, loading: authLoading } = useAuth();
+  const { role, profile, loading: authLoading } = useAuth();
   const { brands } = useBrandsChannels();
   const [splits, setSplits] = useState<FeeSplitRow[]>([]);
   const [txns, setTxns] = useState<TransactionRow[]>([]);
@@ -155,7 +155,7 @@ export default function FeeSplitPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPayout, splits, profileById]);
 
-  const editable = canEdit(role);
+  const editable = canEdit(role, profile);
   const annualSum = useMemo(
     () => (bid: string) => summarize(yearTxns.filter((t) => t.brand_id === bid)),
     [yearTxns]

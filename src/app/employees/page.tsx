@@ -11,8 +11,8 @@ import { canEdit, canManageTeam, ROLE_LABELS, useAuth } from "@/lib/auth";
 import { useBrandsChannels } from "@/lib/useData";
 
 export default function EmployeesPage() {
-  const { role, loading: authLoading } = useAuth();
-  const editable = canEdit(role);
+  const { role, profile, loading: authLoading } = useAuth();
+  const editable = canEdit(role, profile);
   const { brands } = useBrandsChannels();
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);

@@ -31,8 +31,8 @@ export function buildAutoInvoiceNumber(brandName?: string | null, dateStr?: stri
 
 function InvoicesContent() {
   const searchParams = useSearchParams();
-  const { role, loading: authLoading } = useAuth();
-  const editable = canEdit(role);
+  const { role, profile, loading: authLoading } = useAuth();
+  const editable = canEdit(role, profile);
   const { brands } = useBrandsChannels();
 
   const [txns, setTxns] = useState<TransactionRow[]>([]);

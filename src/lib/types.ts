@@ -205,6 +205,7 @@ export interface Profile {
   role: AppRole;
   brand_ids: string[] | null;
   employee_id: string | null;
+  is_accountant?: boolean | null;
   active: boolean;
   created_at?: string;
 }

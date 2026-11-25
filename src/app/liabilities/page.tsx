@@ -10,8 +10,8 @@ import { canEdit, canViewOperations, useAuth } from "@/lib/auth";
 import { useBrandsChannels } from "@/lib/useData";
 
 export default function LiabilitiesPage() {
-  const { role, loading: authLoading } = useAuth();
-  const editable = canEdit(role);
+  const { role, profile, loading: authLoading } = useAuth();
+  const editable = canEdit(role, profile);
   const { brands } = useBrandsChannels();
   const [rows, setRows] = useState<LiabilityRow[]>([]);
   const [assets, setAssets] = useState<AssetRow[]>([]);

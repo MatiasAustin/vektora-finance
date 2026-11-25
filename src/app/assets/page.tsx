@@ -9,8 +9,8 @@ import { canEdit, canManageTeam, canViewOperations, useAuth } from "@/lib/auth";
 import { useBrandsChannels } from "@/lib/useData";
 
 export default function AssetsPage() {
-  const { role, loading: authLoading } = useAuth();
-  const editable = canEdit(role);
+  const { role, profile, loading: authLoading } = useAuth();
+  const editable = canEdit(role, profile);
   const canDelete = canManageTeam(role);
   const { brands } = useBrandsChannels();
   const [rows, setRows] = useState<AssetRow[]>([]);

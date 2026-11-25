@@ -10,10 +10,8 @@ import { useBrandsChannels } from "@/lib/useData";
 
 const PAGE_SIZE = 100;
 
-// Label field untuk tampilan diff (old → new) di riwayat.
 const FIELD_LABELS: Record<string, string> = {
   brand_id: "Brand",
-  channel_id: "Channel",
   kind: "Jenis",
   txn_date: "Tanggal",
   description: "Keterangan",
@@ -41,7 +39,7 @@ function formatWIB(iso: string): string {
 
 export default function HistoryPage() {
   const { role, loading: authLoading } = useAuth();
-  const { brands, channels } = useBrandsChannels();
+  const { brands } = useBrandsChannels();
   const [rows, setRows] = useState<AuditLogRow[]>([]);
   const [creditors, setCreditors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -52,16 +50,12 @@ export default function HistoryPage() {
 
   const brandName = (id: unknown) =>
     typeof id === "string" ? brands.find((b) => b.id === id)?.name ?? "—" : "—";
-  const channelName = (id: unknown) =>
-    typeof id === "string" ? channels.find((c) => c.id === id)?.name ?? "—" : "—";
 
   function formatValue(key: string, v: unknown): string {
     if (v === null || v === undefined || v === "") return "—";
     switch (key) {
       case "brand_id":
         return brandName(v);
-      case "channel_id":
-        return channelName(v);
       case "kind":
         return v === "income" ? "Income" : "Pengeluaran";
       case "txn_date":
@@ -77,7 +71,6 @@ export default function HistoryPage() {
     }
   }
 
-  // Field yang berubah saja (edit); untuk hapus tampilkan isi baris lama.
   function diffLines(a: AuditLogRow): string[] {
     const oldV = a.old_values ?? {};
     const newV = a.new_values ?? {};
@@ -140,7 +133,7 @@ export default function HistoryPage() {
   }, [rows, actionFilter, search]);
 
   if (!isSupabaseConfigured) return <EmptySupabase />;
-  if (loading || authLoading) return <p className="text-slate-500">Memuat…</p>;
+  if (loading || authLoading) return <p className="text-blue-200/70">Memuat riwayat…</p>;
   if (!canEdit(role))
     return (
       <AccessDenied text="Halaman Riwayat hanya bisa diakses admin dan management. Komisaris, investor, dan karyawan tidak bisa melihat siapa yang mengubah data." />
@@ -149,8 +142,12 @@ export default function HistoryPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold">Riwayat Perubahan</h2>
-        <p className="text-sm text-slate-500">Siapa mengubah / menghapus transaksi, dan apa yang berubah.</p>
+        <div>
+          <h2 className="text-xl font-bold text-white">Riwayat Perubahan (Audit Log)</h2>
+          <p className="text-xs text-blue-200/75">
+            Catatan otomatis setiap kali transaksi diubah atau dihapus beserta pelaku dan rincian perubahannya.
+          </p>
+        </div>
       </div>
 
       <Card>
@@ -161,52 +158,57 @@ export default function HistoryPage() {
             className="rounded-xl border px-3 py-2 text-sm"
           >
             <option value="all">Semua aksi</option>
-            <option value="edit">Ubah</option>
-            <option value="delete">Hapus</option>
+            <option value="edit">Ubah (Edit)</option>
+            <option value="delete">Hapus (Delete)</option>
           </select>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari nama orang / keterangan…"
+            placeholder="Cari nama pengguna atau keterangan transaksi…"
             className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm"
           />
         </div>
-        <ul className="mt-4 divide-y">
+        <ul className="mt-4 space-y-2.5">
           {filtered.map((a) => {
             const lines = a.action === "edit" ? diffLines(a) : [];
             const oldV = a.old_values ?? {};
             return (
-              <li key={a.id} className="py-3 text-sm">
+              <li
+                key={a.id}
+                className="rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm"
+              >
                 <div className="flex flex-wrap items-center gap-2">
                   <span
-                    className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                      a.action === "delete" ? "bg-rose-100 text-rose-700" : "bg-blue-100 text-blue-800"
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      a.action === "delete"
+                        ? "bg-rose-500/20 text-rose-200 ring-1 ring-rose-400/30"
+                        : "bg-blue-500/20 text-blue-200 ring-1 ring-blue-400/30"
                     }`}
                   >
                     {a.action === "delete" ? "Hapus" : "Ubah"}
                   </span>
-                  <b className="break-words">{a.record_label ?? "—"}</b>
-                  <span className="ml-auto shrink-0 text-xs text-slate-500">{formatWIB(a.created_at)} WIB</span>
+                  <b className="break-words text-white">{a.record_label ?? "—"}</b>
+                  <span className="ml-auto shrink-0 text-xs text-slate-400">{formatWIB(a.created_at)} WIB</span>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  {a.actor_name ?? "—"}
-                  {a.actor_email ? ` · ${a.actor_email}` : ""}
+                <p className="mt-1 text-xs text-blue-200/75">
+                  Oleh: <b className="text-white">{a.actor_name ?? "—"}</b>
+                  {a.actor_email ? ` (${a.actor_email})` : ""}
                 </p>
                 {a.action === "edit" ? (
                   lines.length > 0 ? (
-                    <ul className="mt-1 space-y-0.5 text-xs text-slate-700">
+                    <ul className="mt-2 space-y-1 rounded-xl bg-black/25 p-2.5 text-xs text-slate-200">
                       {lines.map((l) => (
                         <li key={l} className="break-words">
-                          {l}
+                          • {l}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="mt-1 text-xs text-slate-500">Tidak ada field yang berubah.</p>
+                    <p className="mt-1 text-xs text-slate-400">Tidak ada field yang berubah.</p>
                   )
                 ) : (
-                  <p className="mt-1 break-words text-xs text-slate-700">
-                    Dihapus: {String(oldV.description ?? a.record_label ?? "—")} ·{" "}
+                  <p className="mt-2 break-words rounded-xl bg-rose-950/30 p-2.5 text-xs text-rose-200">
+                    Data yang dihapus: {String(oldV.description ?? a.record_label ?? "—")} ·{" "}
                     {oldV.kind === "income" ? "+" : "−"}
                     {formatIDR(Number(oldV.amount ?? 0))} ·{" "}
                     {oldV.txn_date ? formatDateID(String(oldV.txn_date)) : "—"}
@@ -217,10 +219,10 @@ export default function HistoryPage() {
             );
           })}
           {filtered.length === 0 && (
-            <li className="py-4 text-sm text-slate-500">
+            <li className="rounded-2xl border border-white/5 bg-white/[0.02] py-8 text-center text-sm text-slate-400">
               {rows.length === 0
                 ? "Belum ada perubahan tercatat. Edit/hapus transaksi akan muncul di sini."
-                : "Tidak ada yang cocok dengan filter."}
+                : "Tidak ada riwayat yang cocok dengan filter."}
             </li>
           )}
         </ul>
@@ -232,12 +234,13 @@ export default function HistoryPage() {
               setLoadingMore(false);
             }}
             disabled={loadingMore}
-            className="mt-3 rounded-xl border px-4 py-2 text-sm font-semibold text-slate-700"
+            className="mt-4 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-white hover:bg-white/20"
           >
-            {loadingMore ? "Memuat…" : "Muat lebih"}
+            {loadingMore ? "Memuat…" : "Muat lebih banyak"}
           </button>
         )}
       </Card>
     </div>
   );
 }
+

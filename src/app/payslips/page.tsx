@@ -1,27 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { canEdit, canViewPayslips, useAuth } from "@/lib/auth";
 import { managementFeeFromPayslips, opexFromPayslips, payslipTotals } from "@/lib/types";
 import type { Brand, EmployeeRow, PayrollPeriod, Payslip, PayslipLine } from "@/lib/types";
 import { formatDateID, formatIDR } from "@/lib/format";
-import { AccessDenied, BrandSelect, Card, EmptySupabase, ReadOnlyNotice } from "@/components/ui";
+import { AccessDenied, BrandSelect, Card, EmptySupabase, ReadOnlyNotice, StatCard } from "@/components/ui";
 import { useBrandsChannels } from "@/lib/useData";
 
-/**
- * /payslips — Slip gaji PT Vektora.
- * - Admin/management: buat periode, generate slip dari tim aktif
- *   (karyawan + management — 24 Nov 2026, bukan cuma karyawan),
- *   edit tunjangan/potongan, tandai terkirim (WhatsApp/Email/Langsung),
- *   tandai dibayar, cetak slip.
- * - Karyawan: hanya slip milik sendiri (difilter employee_id profilnya).
- * - Slip karyawan yang Sudah dibayar masuk OPEX bulan itu; slip
- *   MANAGEMENT yang sudah dibayar keluar dari Management Fee, bukan
- *   OPEX (opexFromPayslips / managementFeeFromPayslips).
- * - TIDAK ada pengiriman otomatis: "Kirim" hanya mencatat sent_at + sent_via
- *   dan memberi tautan WhatsApp (wa.me) untuk dibagikan manual.
- */
 export default function PayslipsPage() {
   const { role, profile, loading: authLoading } = useAuth();
   const { brands } = useBrandsChannels();
@@ -33,25 +21,42 @@ export default function PayslipsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
-  const [gen, setGen] = useState({ brand_id: "", period: new Date().toISOString().slice(0, 7), employee_id: "all" });
+  const [copied, setCopied] = useState(false);
+  const [gen, setGen] = useState({
+    brand_id: "",
+    period: new Date().toISOString().slice(0, 7),
+    employee_id: "all",
+  });
   const [sendVia, setSendVia] = useState<"whatsapp" | "email" | "langsung">("whatsapp");
-  const [line, setLine] = useState({ kind: "allowance" as "allowance" | "deduction", label: "", amount: "" });
+  const [line, setLine] = useState({
+    kind: "allowance" as "allowance" | "deduction",
+    label: "",
+    amount: "",
+  });
 
   async function load() {
     const sb = getSupabase();
     if (!sb) return setLoading(false);
     const [p, s, e] = await Promise.all([
       sb.from("payroll_periods").select("*, brands(name)").order("period", { ascending: false }),
-      sb.from("payslips").select("*, employees(name, role, team, brand_id, is_management), payroll_periods(period, brand_id)").order("created_at", { ascending: false }),
+      sb
+        .from("payslips")
+        .select("*, employees(name, role, team, brand_id, is_management), payroll_periods(period, brand_id)")
+        .order("created_at", { ascending: false }),
       sb.from("employees").select("*, brands(name)").eq("is_active", true).order("name"),
     ]);
     if (p.data) setPeriods(p.data as PayrollPeriod[]);
-    if (s.data) setSlips(s.data as Payslip[]);
+    if (s.data) {
+      const list = s.data as Payslip[];
+      setSlips(list);
+      if (!selectedId && list.length > 0) setSelectedId(list[0].id);
+    }
     if (e.data) setEmployees(e.data as EmployeeRow[]);
     setLoading(false);
   }
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     if (brands.length && !gen.brand_id) setGen((g) => ({ ...g, brand_id: brands[0].id }));
@@ -62,13 +67,19 @@ export default function PayslipsPage() {
     let list = slips;
     if (isEmployee && profile?.employee_id) list = list.filter((s) => s.employee_id === profile.employee_id);
     if (isEmployee && !profile?.employee_id) list = [];
-    if (brandId !== "all") list = list.filter((s) => s.payroll_periods?.brand_id === brandId || s.employees?.brand_id === brandId);
+    if (brandId !== "all")
+      list = list.filter(
+        (s) => s.payroll_periods?.brand_id === brandId || s.employees?.brand_id === brandId
+      );
     if (periodId !== "all") list = list.filter((s) => s.payroll_period_id === periodId);
     return list;
   }, [slips, isEmployee, profile, brandId, periodId]);
 
   const totals = useMemo(() => payslipTotals(visibleSlips), [visibleSlips]);
-  const selected = useMemo(() => slips.find((s) => s.id === selectedId) ?? null, [slips, selectedId]);
+  const selected = useMemo(
+    () => visibleSlips.find((s) => s.id === selectedId) ?? visibleSlips[0] ?? null,
+    [visibleSlips, selectedId]
+  );
   const editable = canEdit(role);
 
   async function generate(e: React.FormEvent) {
@@ -86,8 +97,6 @@ export default function PayslipsPage() {
       setMsg("Gagal buat periode: " + (perr?.message ?? "unknown"));
       return;
     }
-    // Dropdown "Tim": "all" = semua tim aktif di brand; satu orang = hanya dia.
-    // Tidak ada ketik nama manual — pilih dari daftar tim yang terdaftar.
     const target =
       gen.employee_id === "all"
         ? employees.filter((x) => x.brand_id === gen.brand_id)
@@ -97,16 +106,16 @@ export default function PayslipsPage() {
     if (withSalary.length === 0) {
       setMsg(
         gen.employee_id === "all"
-          ? "Tidak ada tim aktif dengan gaji terisi di brand ini. Isi gaji dulu di /employees."
-          : `Gaji ${target[0]?.name ?? "orang ini"} masih 0 / belum diisi. Isi gaji dulu di /employees.`
+          ? "Tidak ada karyawan aktif dengan gaji tetap > Rp0 di brand ini. Isi gaji pokok di halaman Karyawan & Gaji terlebih dahulu (untuk jajaran Management, cetak slip di halaman Pembagian Fee)."
+          : `${
+              target[0]?.name ?? "Anggota ini"
+            } tidak memiliki gaji pokok tetap (Rp0). Bila ia dibayar dari Management Fee, buka halaman Pembagian Fee untuk mencetak slipnya.`
       );
       return;
     }
     const rows = withSalary.map((x) => ({
       payroll_period_id: (period as PayrollPeriod).id,
       employee_id: x.id,
-      // Snapshot nama (24 Nov 2026): slip tetap menampilkan nama walau
-      // karyawan dihapus nanti (employee_id jadi null, lihat schema).
       employee_name: x.name,
       base_salary: x.monthly_salary,
       allowances: [],
@@ -120,8 +129,10 @@ export default function PayslipsPage() {
     if (error) setMsg("Gagal generate slip: " + error.message);
     else {
       setMsg(
-        `Slip dibuat untuk ${withSalary.length} orang periode ${gen.period}.` +
-          (skipped.length ? ` Dilewati (gaji 0 / belum diisi): ${skipped.map((x) => x.name).join(", ")}.` : "")
+        `Slip gaji berhasil dibuat untuk ${withSalary.length} orang (periode ${gen.period}).` +
+          (skipped.length
+            ? ` Dilewati karena gaji pokok Rp0 / Management Fee: ${skipped.map((x) => x.name).join(", ")}.`
+            : "")
       );
       setPeriodId((period as PayrollPeriod).id);
       load();
@@ -154,168 +165,446 @@ export default function PayslipsPage() {
     setLine({ kind: "allowance", label: "", amount: "" });
   }
 
-  // Nama slip: dari join employees, jatuh ke snapshot bila karyawan sudah
-  // dihapus (24 Nov 2026).
+  async function removeLine(kind: "allowance" | "deduction", index: number) {
+    if (!selected || !editable) return;
+    const allowances = [...(selected.allowances ?? [])];
+    const deductions = [...(selected.deductions ?? [])];
+    if (kind === "allowance") allowances.splice(index, 1);
+    else deductions.splice(index, 1);
+    await updateSlip(selected, recompute(selected, allowances, deductions));
+  }
+
   function slipName(p: Payslip): string {
     return p.employees?.name ?? p.employee_name ?? "—";
   }
 
   function waLink(p: Payslip): string {
-    const text = `Slip Gaji — PT Vektora Teknologi Nusantara\n${slipName(p)} (${p.employees?.role ?? ""})\nPeriode: ${p.payroll_periods?.period ?? ""}\nGaji pokok: ${formatIDR(p.base_salary)}\nGaji bersih: ${formatIDR(p.net_pay)}\nStatus: ${p.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}`;
+    const text = `Slip Gaji — PT Vektora Teknologi Nusantara\n${slipName(p)} (${
+      p.employees?.role ?? ""
+    })\nPeriode: ${p.payroll_periods?.period ?? ""}\nGaji pokok: ${formatIDR(
+      p.base_salary
+    )}\nGaji bersih: ${formatIDR(p.net_pay)}\nStatus: ${
+      p.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"
+    }`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }
 
   if (!isSupabaseConfigured) return <EmptySupabase />;
-  if (authLoading || loading) return <p className="text-slate-500">Memuat…</p>;
+  if (authLoading || loading) return <p className="text-blue-200/70">Memuat slip gaji…</p>;
   if (!canViewPayslips(role)) {
-    return <AccessDenied text="Slip gaji hanya untuk admin, management, dan karyawan yang bersangkutan. Komisaris dan investor tidak bisa melihat slip per karyawan (hanya total OPEX di dashboard)." />;
+    return (
+      <AccessDenied text="Slip gaji hanya untuk admin, management, dan karyawan yang bersangkutan. Komisaris dan investor melihat total OPEX di dashboard." />
+    );
   }
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold">{isEmployee ? "Slip Gaji Saya" : "Slip Gaji"}</h2>
-        <div className="flex gap-2">
+        <div>
+          <h2 className="text-xl font-bold text-white">{isEmployee ? "Slip Gaji Saya" : "Slip Gaji (Payroll OPEX)"}</h2>
+          <p className="text-xs text-blue-200/75">
+            {isEmployee
+              ? "Daftar slip gaji bulanan milikmu yang dapat dicetak atau diunduh."
+              : "Generate slip gaji bulanan staf operasional, tambah tunjangan/potongan, dan bagikan via WhatsApp."}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <BrandSelect brands={brands} value={brandId} onChange={setBrandId} />
-          <select value={periodId} onChange={(e) => setPeriodId(e.target.value)} className="rounded-xl border bg-white px-3 py-2 text-sm">
+          <select
+            value={periodId}
+            onChange={(e) => setPeriodId(e.target.value)}
+            className="rounded-2xl border px-3 py-1.5 text-xs font-semibold"
+          >
             <option value="all">Semua periode</option>
             {periods.map((p) => (
-              <option key={p.id} value={p.id}>{p.period} · {p.brands?.name}</option>
+              <option key={p.id} value={p.id}>
+                {p.period} · {p.brands?.name}
+              </option>
             ))}
           </select>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card><p className="text-xs font-semibold uppercase text-slate-500">Total gaji bersih</p><p className="mt-1 text-2xl font-bold">{formatIDR(totals.totalNet)}</p><p className="mt-1 text-xs text-slate-500">Semua slip yang tampil (karyawan + management).</p></Card>
-        <Card><p className="text-xs font-semibold uppercase text-slate-500">Sudah dibayar (masuk OPEX)</p><p className="mt-1 text-2xl font-bold">{formatIDR(opexFromPayslips(visibleSlips))}</p><p className="mt-1 text-xs text-slate-500">Hanya slip karyawan. Dibayar dari Management Fee: {formatIDR(managementFeeFromPayslips(visibleSlips))}.</p></Card>
-        <Card><p className="text-xs font-semibold uppercase text-slate-500">Belum dibayar (tunggakan)</p><p className="mt-1 text-2xl font-bold">{formatIDR(totals.outstanding)}</p></Card>
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+        <StatCard
+          label="Total Gaji Bersih"
+          value={formatIDR(totals.totalNet)}
+          sub={`${visibleSlips.length} slip gaji ditampilkan`}
+        />
+        <StatCard
+          label="Sudah Dibayar (OPEX)"
+          value={formatIDR(opexFromPayslips(visibleSlips))}
+          sub={`Dari Management Fee: ${formatIDR(managementFeeFromPayslips(visibleSlips))}`}
+          tone="positive"
+        />
+        <StatCard
+          label="Belum Dibayar (Tunggakan)"
+          value={formatIDR(totals.outstanding)}
+          sub="Menunggu pencairan gaji"
+          tone="warning"
+        />
       </div>
-      <p className="text-xs text-slate-500">Total sudah dibayar: {formatIDR(totals.paid)} = OPEX {formatIDR(opexFromPayslips(visibleSlips))} + Management Fee {formatIDR(managementFeeFromPayslips(visibleSlips))}. Slip management tidak masuk OPEX.</p>
 
       {editable && (
         <Card>
-          <h3 className="font-bold">Buat periode &amp; generate slip</h3>
-          <form onSubmit={generate} className="mt-3 flex flex-wrap items-end gap-3">
-            <label className="text-sm">Brand
-              <select value={gen.brand_id} onChange={(e) => setGen({ ...gen, brand_id: e.target.value, employee_id: "all" })} className="ml-2 rounded-xl border px-2 py-1">
-                {brands.map((b: Brand) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-            </label>
-            <label className="text-sm">Tim
-              <select value={gen.employee_id} onChange={(e) => setGen({ ...gen, employee_id: e.target.value })} className="ml-2 rounded-xl border px-2 py-1">
-                <option value="all">Semua tim di brand ini</option>
-                {employees.filter((x) => x.brand_id === gen.brand_id).map((x) => (
-                  <option key={x.id} value={x.id}>{x.name}{x.role ? ` — ${x.role}` : ""}</option>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-base font-bold text-white">Generate Slip Gaji Periode Baru</h3>
+              <p className="text-xs text-slate-400">
+                Membuat slip dari gaji pokok di halaman Karyawan. Untuk jajaran Direksi/Komisaris yang berbasis % laba,
+                cetak slipnya di{" "}
+                <Link href="/fee-split" className="font-semibold text-blue-300 underline">
+                  Pembagian Fee →
+                </Link>
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={generate} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
+            <label className="block text-xs text-blue-200/80">
+              Brand
+              <select
+                value={gen.brand_id}
+                onChange={(e) => setGen({ ...gen, brand_id: e.target.value, employee_id: "all" })}
+                className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+              >
+                {brands.map((b: Brand) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
                 ))}
               </select>
             </label>
-            <label className="text-sm">Periode
-              <input type="month" value={gen.period} onChange={(e) => setGen({ ...gen, period: e.target.value })} className="ml-2 rounded-xl border px-2 py-1" required />
+
+            <label className="block text-xs text-blue-200/80">
+              Karyawan
+              <select
+                value={gen.employee_id}
+                onChange={(e) => setGen({ ...gen, employee_id: e.target.value })}
+                className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+              >
+                <option value="all">Semua karyawan bergaji tetap</option>
+                {employees
+                  .filter((x) => x.brand_id === gen.brand_id)
+                  .map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                      {x.role ? ` — ${x.role}` : ""} ({formatIDR(x.monthly_salary)})
+                    </option>
+                  ))}
+              </select>
             </label>
-            <button className="rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">Generate slip</button>
+
+            <label className="block text-xs text-blue-200/80">
+              Periode (Bulan)
+              <input
+                type="month"
+                value={gen.period}
+                onChange={(e) => setGen({ ...gen, period: e.target.value })}
+                className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                required
+              />
+            </label>
+
+            <div className="flex items-end">
+              <button className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500">
+                Generate Slip
+              </button>
+            </div>
           </form>
-          <p className="mt-2 text-xs text-slate-500">Generate dari tim aktif brand itu (karyawan + management), gaji pokok = gaji bulanan di /employees. Pilih satu orang di dropdown "Tim" untuk generate slip dia saja — tidak perlu ketik nama. Tunjangan/potongan default 0 — edit per slip. Tim dengan gaji 0 dilewati.</p>
-          {msg && <p className="mt-2 text-sm">{msg}</p>}
+
+          {msg && (
+            <p className="mt-3 rounded-xl border border-blue-400/25 bg-blue-500/10 px-3 py-2 text-xs text-blue-200">
+              {msg}
+            </p>
+          )}
         </Card>
       )}
       {isEmployee && <ReadOnlyNotice role={role} />}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <h3 className="font-bold">Daftar slip ({visibleSlips.length})</h3>
-          <ul className="mt-3 divide-y">
-            {visibleSlips.map((s) => (
-              <li key={s.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                <button onClick={() => setSelectedId(s.id)} className="text-left">
-                  <span className="font-medium">{slipName(s)}</span>
-                  <span className="block text-xs text-slate-500">{s.payroll_periods?.period} · {formatIDR(s.net_pay)} · {s.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}{s.sent_at ? ` · Terkirim ${s.sent_via ?? ""}` : ""}</span>
-                </button>
-                <button onClick={() => setSelectedId(s.id)} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">Lihat</button>
+      <div className="grid gap-4 lg:grid-cols-12">
+        {/* Daftar Slip (Satu kartu interaktif per baris, tanpa dua tombol kembar) */}
+        <Card className="lg:col-span-5">
+          <h3 className="text-base font-bold text-white">Daftar Slip ({visibleSlips.length})</h3>
+          <p className="text-xs text-slate-400">Klik baris untuk membuka rincian &amp; cetak slip.</p>
+          <ul className="mt-3 space-y-2">
+            {visibleSlips.map((s) => {
+              const isSelected = selected?.id === s.id;
+              const isPaid = s.status === "sudah_dibayar";
+              return (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(s.id)}
+                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border p-3.5 text-left transition ${
+                      isSelected
+                        ? "border-blue-400/60 bg-blue-600/25 shadow-lg shadow-blue-950/50"
+                        : "border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.07]"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-white">{slipName(s)}</p>
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        Periode {s.payroll_periods?.period} · {s.employees?.role ?? "Staf"}
+                        {s.sent_at ? ` · Terkirim (${s.sent_via})` : ""}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-black text-white">{formatIDR(s.net_pay)}</p>
+                      <span
+                        className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          isPaid
+                            ? "bg-emerald-500/20 text-emerald-200"
+                            : "bg-amber-500/20 text-amber-200"
+                        }`}
+                      >
+                        {isPaid ? "Sudah dibayar" : "Belum dibayar"}
+                      </span>
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+            {visibleSlips.length === 0 && (
+              <li className="rounded-2xl border border-white/5 bg-white/[0.02] py-8 text-center text-sm text-slate-400">
+                Belum ada slip gaji.{" "}
+                {isEmployee ? "Slipmu akan muncul setelah admin men-generate periode ini." : "Generate periode di atas."}
               </li>
-            ))}
-            {visibleSlips.length === 0 && <li className="py-4 text-sm text-slate-500">Belum ada slip. {isEmployee ? "Slipmu akan muncul di sini setelah admin generate." : "Generate periode di atas."}</li>}
+            )}
           </ul>
         </Card>
 
-        {selected && (
-          <Card className="payslip-print">
-            <div className="border-b pb-3">
-              <p className="text-xs font-semibold uppercase tracking-widest text-vektora-600">PT Vektora Teknologi Nusantara</p>
-              <h3 className="text-lg font-black">Slip Gaji</h3>
-              <p className="text-sm text-slate-500">Periode {selected.payroll_periods?.period} · {slipName(selected)} — {selected.employees?.role ?? "—"}</p>
-            </div>
-            <div className="mt-3 space-y-1 text-sm">
-              <p className="flex justify-between"><span>Gaji pokok</span><b>{formatIDR(selected.base_salary)}</b></p>
-              {(selected.allowances ?? []).map((l, i) => <p key={i} className="flex justify-between text-slate-600"><span>+ {l.label}</span><span>{formatIDR(l.amount)}</span></p>)}
-              <p className="flex justify-between border-t pt-1"><span>Total penghasilan (gross)</span><b>{formatIDR(selected.gross)}</b></p>
-              {(selected.deductions ?? []).map((l, i) => <p key={i} className="flex justify-between text-slate-600"><span>− {l.label}</span><span>{formatIDR(l.amount)}</span></p>)}
-              <p className="flex justify-between"><span>Total potongan</span><b>{formatIDR(selected.total_deductions)}</b></p>
-              <p className="flex justify-between border-t pt-2 text-base"><span>Gaji bersih</span><b>{formatIDR(selected.net_pay)}</b></p>
-              <p className="text-xs text-slate-500">Status: {selected.status === "sudah_dibayar" ? `Sudah dibayar${selected.paid_at ? " · " + formatDateID(selected.paid_at) : ""}` : "Belum dibayar"}{selected.sent_at ? ` · Terkirim ${selected.sent_via ?? ""} · ${formatDateID(selected.sent_at)}` : ""}</p>
-            </div>
-            <div className="mt-6 flex justify-between text-xs text-slate-500">
-              <span>Disetujui,<br /><br /><br />_________________<br />PT Vektora</span>
-              <span>Diterima oleh,<br /><br /><br />_________________<br />{slipName(selected)}</span>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2 print:hidden">
-              <button onClick={() => window.print()} className="rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">Cetak slip</button>
+        {/* Pratinjau & Editor Slip Gaji */}
+        <div className="lg:col-span-7">
+          {selected ? (
+            <Card className="payslip-print">
+              <div className="flex flex-wrap items-start justify-between gap-2 border-b border-white/10 pb-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">
+                    PT Vektora Teknologi Nusantara
+                  </p>
+                  <h3 className="mt-0.5 text-xl font-black text-white">SLIP GAJI KARYAWAN</h3>
+                  <p className="text-xs text-slate-300">
+                    Periode: <b>{selected.payroll_periods?.period}</b> · Penerima: <b>{slipName(selected)}</b> (
+                    {selected.employees?.role ?? "—"})
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${
+                    selected.status === "sudah_dibayar"
+                      ? "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/30"
+                      : "bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/30"
+                  }`}
+                >
+                  {selected.status === "sudah_dibayar" ? "LUNAS / SUDAH DIBAYAR" : "BELUM DIBAYAR"}
+                </span>
+              </div>
+
+              <div className="mt-4 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-300">Gaji Pokok</span>
+                  <b className="text-white">{formatIDR(selected.base_salary)}</b>
+                </div>
+
+                {(selected.allowances ?? []).map((l, i) => (
+                  <div key={i} className="flex items-center justify-between text-emerald-300">
+                    <span>+ Tunjangan: {l.label}</span>
+                    <div className="flex items-center gap-2">
+                      <span>{formatIDR(l.amount)}</span>
+                      {editable && (
+                        <button
+                          type="button"
+                          onClick={() => removeLine("allowance", i)}
+                          className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-rose-300 hover:bg-rose-500/20 print:hidden"
+                          title="Hapus baris tunjangan ini"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex justify-between border-t border-white/10 pt-2">
+                  <span className="text-slate-300">Total Penghasilan Kotor (Gross)</span>
+                  <b className="text-white">{formatIDR(selected.gross)}</b>
+                </div>
+
+                {(selected.deductions ?? []).map((l, i) => (
+                  <div key={i} className="flex items-center justify-between text-rose-300">
+                    <span>− Potongan: {l.label}</span>
+                    <div className="flex items-center gap-2">
+                      <span>{formatIDR(l.amount)}</span>
+                      {editable && (
+                        <button
+                          type="button"
+                          onClick={() => removeLine("deduction", i)}
+                          className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-rose-300 hover:bg-rose-500/20 print:hidden"
+                          title="Hapus baris potongan ini"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex justify-between text-slate-300">
+                  <span>Total Potongan</span>
+                  <b>{formatIDR(selected.total_deductions)}</b>
+                </div>
+
+                <div className="flex justify-between rounded-2xl border border-blue-400/30 bg-blue-500/15 p-3 text-base">
+                  <span className="font-bold text-blue-100">Take Home Pay (Gaji Bersih)</span>
+                  <b className="text-lg font-black text-white">{formatIDR(selected.net_pay)}</b>
+                </div>
+
+                <p className="text-xs text-slate-400">
+                  Status:{" "}
+                  {selected.status === "sudah_dibayar"
+                    ? `Sudah dibayar${selected.paid_at ? " pada " + formatDateID(selected.paid_at) : ""}`
+                    : "Belum dibayar"}
+                  {selected.sent_at
+                    ? ` · Terkirim via ${selected.sent_via ?? ""} pada ${formatDateID(selected.sent_at)}`
+                    : ""}
+                </p>
+              </div>
+
               {editable && (
-                <>
-                  <a href={waLink(selected)} target="_blank" rel="noreferrer" className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Bagikan via WhatsApp</a>
-                  <button
-                    onClick={() => navigator.clipboard?.writeText(waLink(selected))}
-                    className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold"
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    addLine();
+                  }}
+                  className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-black/20 p-3 print:hidden"
+                >
+                  <select
+                    value={line.kind}
+                    onChange={(e) => setLine({ ...line, kind: e.target.value as "allowance" | "deduction" })}
+                    className="rounded-xl border px-2.5 py-1.5 text-xs font-semibold"
                   >
-                    Salin tautan slip
-                  </button>
-                  <select value={sendVia} onChange={(e) => setSendVia(e.target.value as "whatsapp" | "email" | "langsung")} className="rounded-xl border px-2 py-1 text-sm">
-                    <option value="whatsapp">WhatsApp</option>
-                    <option value="email">Email</option>
-                    <option value="langsung">Langsung</option>
+                    <option value="allowance">+ Tunjangan</option>
+                    <option value="deduction">− Potongan</option>
                   </select>
-                  <button
-                    onClick={() => updateSlip(selected, { sent_at: new Date().toISOString(), sent_via: sendVia })}
-                    className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold"
-                  >
-                    Tandai terkirim
+                  <input
+                    value={line.label}
+                    onChange={(e) => setLine({ ...line, label: e.target.value })}
+                    placeholder="Keterangan (mis. Bonus Lembur)"
+                    className="min-w-0 flex-1 rounded-xl border px-3 py-1.5 text-xs"
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    value={line.amount}
+                    onChange={(e) => setLine({ ...line, amount: e.target.value })}
+                    placeholder="Nominal Rp"
+                    className="w-32 rounded-xl border px-3 py-1.5 text-xs font-bold"
+                  />
+                  <button className="rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-500">
+                    + Tambah Baris
                   </button>
-                  <button
-                    onClick={() =>
-                      updateSlip(
-                        selected,
-                        selected.status === "sudah_dibayar"
-                          ? { status: "belum_dibayar", paid_at: null }
-                          : { status: "sudah_dibayar", paid_at: new Date().toISOString() }
-                      )
-                    }
-                    className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold"
-                  >
-                    {selected.status === "sudah_dibayar" ? "Batalkan dibayar" : "Tandai sudah dibayar"}
-                  </button>
-                </>
+                </form>
               )}
-            </div>
-            {editable && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  addLine();
-                }}
-                className="mt-4 flex flex-wrap gap-2 border-t pt-3 print:hidden"
-              >
-                <select value={line.kind} onChange={(e) => setLine({ ...line, kind: e.target.value as "allowance" | "deduction" })} className="rounded-xl border px-2 py-1 text-sm">
-                  <option value="allowance">Tunjangan (+)</option>
-                  <option value="deduction">Potongan (−)</option>
-                </select>
-                <input value={line.label} onChange={(e) => setLine({ ...line, label: e.target.value })} placeholder="Keterangan" className="rounded-xl border px-2 py-1 text-sm" />
-                <input type="number" min="1" value={line.amount} onChange={(e) => setLine({ ...line, amount: e.target.value })} placeholder="Rp" className="w-28 rounded-xl border px-2 py-1 text-sm" />
-                <button className="rounded-xl bg-vektora-500 px-3 py-1 text-sm font-semibold text-white">Tambah baris</button>
-              </form>
-            )}
-          </Card>
-        )}
+
+              <div className="mt-6 flex justify-between text-xs text-slate-400">
+                <span>
+                  Disetujui oleh,
+                  <br />
+                  <br />
+                  <br />
+                  _______________________
+                  <br />
+                  <b className="text-slate-200">PT Vektora Teknologi Nusantara</b>
+                </span>
+                <span className="text-right">
+                  Diterima oleh,
+                  <br />
+                  <br />
+                  <br />
+                  _______________________
+                  <br />
+                  <b className="text-slate-200">{slipName(selected)}</b>
+                </span>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4 print:hidden">
+                <button
+                  onClick={() => window.print()}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow shadow-blue-600/30 hover:bg-blue-500"
+                >
+                  🖨 Cetak / Simpan PDF
+                </button>
+                {editable && (
+                  <>
+                    <a
+                      href={waLink(selected)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-emerald-500"
+                    >
+                      Kirim WhatsApp ↗
+                    </a>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard?.writeText(waLink(selected));
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10"
+                    >
+                      {copied ? "✓ Tersalin" : "Salin Tautan WA"}
+                    </button>
+
+                    <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-black/25 p-1">
+                      <select
+                        value={sendVia}
+                        onChange={(e) => setSendVia(e.target.value as "whatsapp" | "email" | "langsung")}
+                        className="rounded-lg border-0 bg-transparent px-2 py-1 text-xs"
+                      >
+                        <option value="whatsapp">via WA</option>
+                        <option value="email">via Email</option>
+                        <option value="langsung">Langsung</option>
+                      </select>
+                      <button
+                        onClick={() =>
+                          updateSlip(selected, { sent_at: new Date().toISOString(), sent_via: sendVia })
+                        }
+                        className="rounded-lg bg-white/10 px-2.5 py-1 text-xs font-semibold text-white hover:bg-white/20"
+                      >
+                        Catat Terkirim
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        updateSlip(
+                          selected,
+                          selected.status === "sudah_dibayar"
+                            ? { status: "belum_dibayar", paid_at: null }
+                            : { status: "sudah_dibayar", paid_at: new Date().toISOString() }
+                        )
+                      }
+                      className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${
+                        selected.status === "sudah_dibayar"
+                          ? "border border-white/15 bg-white/5 text-slate-300 hover:bg-white/10"
+                          : "bg-emerald-500 text-white shadow shadow-emerald-600/30 hover:bg-emerald-400"
+                      }`}
+                    >
+                      {selected.status === "sudah_dibayar" ? "Batalkan Status Lunas" : "✓ Tandai Sudah Dibayar"}
+                    </button>
+                  </>
+                )}
+              </div>
+            </Card>
+          ) : (
+            <Card className="flex h-64 items-center justify-center text-sm text-slate-400">
+              Pilih salah satu slip gaji di sebelah kiri untuk melihat detailnya.
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );
 }
+

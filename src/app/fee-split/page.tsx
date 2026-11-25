@@ -4,43 +4,42 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { computeFeeSplit, summarize } from "@/lib/types";
-import type { Brand, DividendPayout, FeeSplitRow, Profile, TransactionRow } from "@/lib/types";
+import type { DividendPayout, FeeSplitRow, Profile, TransactionRow } from "@/lib/types";
 import { formatDateID, formatIDR } from "@/lib/format";
-import { BrandSelect, Card, EmptySupabase, ReadOnlyNotice } from "@/components/ui";
-import { canEdit, canEditFeeSplit, ROLE_LABELS, useAuth } from "@/lib/auth";
+import { AccessDenied, BrandSelect, Card, EmptySupabase, ReadOnlyNotice } from "@/components/ui";
+import { canEdit, canEditFeeSplit, canViewOperations, ROLE_LABELS, useAuth } from "@/lib/auth";
 import { useBrandsChannels } from "@/lib/useData";
+
+type RecipientDraft = {
+  name: string;
+  pct: number;
+  employee_id: string | null;
+  profile_id: string | null;
+};
+
+type SplitPctDraft = {
+  dividend_pct: number;
+  management_fee_pct: number;
+  retained_pct: number;
+};
 
 export default function FeeSplitPage() {
   const { role, loading: authLoading } = useAuth();
   const { brands } = useBrandsChannels();
   const [splits, setSplits] = useState<FeeSplitRow[]>([]);
   const [txns, setTxns] = useState<TransactionRow[]>([]);
-  // Profil terdaftar (24 Nov 2026): penerima fee/dividen dihubungkan ke
-  // PROFIL, bukan hanya ke employee — investor & komisaris adalah profil,
-  // bukan karyawan (contoh: Febri = investor + komisaris, dapat dividen
-  // sekaligus fee). Query sama seperti /team dan /employees.
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [brandId, setBrandId] = useState("all");
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
-  // Draft editor penerima fee (24 Nov 2026): diedit per kartu brand,
-  // disimpan sekaligus ke fee_splits (jsonb). Bukan state global — tiap
-  // kartu punya draft sendiri yang di-reset dari data tersimpan tiap load.
-  type RecipientDraft = { name: string; pct: number; employee_id: string | null; profile_id: string | null };
   const [drafts, setDrafts] = useState<Record<string, { dividend: RecipientDraft[]; fee: RecipientDraft[] }>>({});
-  // Dividen tahunan (24 Nov 2026): cair 1x per tahun.
+  const [pctDrafts, setPctDrafts] = useState<Record<string, SplitPctDraft>>({});
   const [year, setYear] = useState(2026);
   const [yearTxns, setYearTxns] = useState<TransactionRow[]>([]);
   const [payouts, setPayouts] = useState<DividendPayout[]>([]);
   const [divMsg, setDivMsg] = useState("");
-  // Slip dividen (24 Nov 2026): kartu slip yang bisa dicetak / dibagikan
-  // per baris pencairan, seperti slip gaji di /payslips.
   const [selectedPayout, setSelectedPayout] = useState<DividendPayout | null>(null);
   const [sendVia, setSendVia] = useState<"whatsapp" | "email" | "langsung">("whatsapp");
-  // Slip fee (24 Nov 2026): dokumen tampilan dari data live per bulan —
-  // BUKAN tabel baru. Untuk SEMUA penerima fee/dividen, termasuk jajaran
-  // direktur & komisaris yang tidak punya slip gaji (bagian mereka dari
-  // fee pool, bukan dari monthly_salary).
   const [feeSlip, setFeeSlip] = useState<{ kind: "fee" | "dividend"; splitId: string; name: string } | null>(null);
   const [feeSlipMonth, setFeeSlipMonth] = useState(new Date().toISOString().slice(0, 7));
   const [monthTxns, setMonthTxns] = useState<TransactionRow[]>([]);
@@ -58,43 +57,61 @@ export default function FeeSplitPage() {
     if (p.data) setProfiles(p.data as Profile[]);
     setLoading(false);
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  // Draft editor mengikuti data tersimpan (di-reset tiap splits berubah,
-  // mis. setelah simpan berhasil).
   useEffect(() => {
     const d: Record<string, { dividend: RecipientDraft[]; fee: RecipientDraft[] }> = {};
+    const p: Record<string, SplitPctDraft> = {};
     for (const s of splits) {
       d[s.id] = {
-        dividend: (s.dividend_recipients ?? []).map((r) => ({ name: r.name, pct: r.pct_of_dividend, employee_id: r.employee_id ?? null, profile_id: r.profile_id ?? null })),
-        fee: (s.management_fee_recipients ?? []).map((r) => ({ name: r.name, pct: r.pct_of_fee, employee_id: r.employee_id ?? null, profile_id: r.profile_id ?? null })),
+        dividend: (s.dividend_recipients ?? []).map((r) => ({
+          name: r.name,
+          pct: r.pct_of_dividend,
+          employee_id: r.employee_id ?? null,
+          profile_id: r.profile_id ?? null,
+        })),
+        fee: (s.management_fee_recipients ?? []).map((r) => ({
+          name: r.name,
+          pct: r.pct_of_fee,
+          employee_id: r.employee_id ?? null,
+          profile_id: r.profile_id ?? null,
+        })),
+      };
+      p[s.id] = {
+        dividend_pct: Number(s.dividend_pct) || 0,
+        management_fee_pct: Number(s.management_fee_pct) || 0,
+        retained_pct: Number(s.retained_pct) || 0,
       };
     }
     setDrafts(d);
+    setPctDrafts(p);
   }, [splits]);
 
-  // Laba tahunan dihitung dari transaksi tahun itu SAJA (query rentang
-  // tanggal, bukan dari load 500 baris di atas) supaya totalnya tepat.
   async function loadAnnual(y: number) {
     const sb = getSupabase();
     if (!sb) return;
     const [t, p] = await Promise.all([
       sb.from("transactions").select("*").gte("txn_date", `${y}-01-01`).lte("txn_date", `${y}-12-31`).limit(5000),
-      sb.from("dividend_payouts").select("*, brands(name)").eq("year", y).order("brand_id").order("recipient_name"),
+      sb
+        .from("dividend_payouts")
+        .select("*, brands(name)")
+        .eq("year", y)
+        .order("brand_id")
+        .order("recipient_name"),
     ]);
     if (t.data) setYearTxns(t.data as TransactionRow[]);
     if (p.data) setPayouts(p.data as DividendPayout[]);
   }
-  useEffect(() => { loadAnnual(year); }, [year]);
+  useEffect(() => {
+    loadAnnual(year);
+  }, [year]);
 
-  // BUG 24 Nov 2026 (diperbaiki): sebelumnya halaman ini menghitung SATU laba
-  // global dari semua transaksi, lalu menerapkan laba yang sama ke tiap kartu
-  // fee-split per brand — sehingga Moonimo (belum ada transaksi) ikut
-  // menampilkan pembagian WhereIsIt. Sekarang laba dihitung PER BRAND dari
-  // transaksi brand itu sendiri; brand tanpa transaksi / laba <= 0 = Rp0.
-  // Filter brand: "Semua brand" menampilkan semua kartu (masing-masing dengan
-  // labanya sendiri); satu brand menampilkan hanya kartu brand itu.
-  const visibleSplits = useMemo(() => splits.filter((s) => brandId === "all" || s.brand_id === brandId), [splits, brandId]);
+  const visibleSplits = useMemo(
+    () => splits.filter((s) => brandId === "all" || s.brand_id === brandId),
+    [splits, brandId]
+  );
   const brandSum = useMemo(
     () => (bid: string) => summarize(txns.filter((t) => t.brand_id === bid)),
     [txns]
@@ -104,31 +121,24 @@ export default function FeeSplitPage() {
     [visibleSplits, brandSum]
   );
 
-  // ---------- Tautan penerima ke profil terdaftar (24 Nov 2026) ----------
-  // Satu orang bisa pegang dua peran: Febri = investor (dividen 70%) +
-  // komisaris (fee 7%) — dapat dividen SEKALIGUS fee. Jadi penerima
-  // dihubungkan ke profil, bukan hanya ke employee. Tampilan: "Komisaris
-  // Utama — Febri"; bila nama penerima sudah sama dengan nama profil
-  // (mis. "Febri (pemodal)"), tampil apa adanya tanpa pengulangan.
-  // (Didefinisikan di sini — SEBELUM feeSlipData — karena memo slip fee
-  // di bawah memakai recipientLabel saat render.)
   const profileById = useMemo(() => new Map(profiles.map((p) => [p.id, p])), [profiles]);
   function profileDisplayName(id: string | null | undefined): string {
     if (!id) return "";
     const p = profileById.get(id);
-    return p ? (p.full_name ?? p.email ?? "") : "";
+    return p ? p.full_name ?? p.email ?? "" : "";
   }
   function recipientLabel(name: string, profile_id?: string | null): string {
     const person = profileDisplayName(profile_id);
     if (!person) return name;
-    // Jangan gandakan bila nama penerima sudah menyebut orangnya.
     if (name.toLowerCase().includes(person.toLowerCase().split(" ")[0])) return name;
     return `${name} — ${person}`;
   }
-  // Pilih profil di editor: isi profile_id, dan ikut isi employee_id dari
-  // profil itu bila ada (supaya "Lihat slip gaji" tetap jalan). Kosongkan
-  // pilihan = lepas tautan (kedua id jadi null).
-  function pickProfileForDraft(splitId: string, kind: "dividend" | "fee", idx: number, profileId: string) {
+  function pickProfileForDraft(
+    splitId: string,
+    kind: "dividend" | "fee",
+    idx: number,
+    profileId: string
+  ) {
     const p = profileId ? profileById.get(profileId) : undefined;
     updateDraft(splitId, kind, idx, {
       profile_id: profileId || null,
@@ -136,16 +146,14 @@ export default function FeeSplitPage() {
     });
   }
 
-  // Label slip dividen: cari tautan profil penerima dividen yang namanya
-  // cocok dengan pencairan ini (nama unik per daftar penerima).
   const payoutLabel = useMemo(() => {
     if (!selectedPayout) return "";
     const split = splits.find((s) => s.brand_id === selectedPayout.brand_id);
     const rec = split?.dividend_recipients?.find((r) => r.name === selectedPayout.recipient_name);
     return recipientLabel(selectedPayout.recipient_name, rec?.profile_id ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPayout, splits, profileById]);
 
-  // ---------- Dividen tahunan ----------
   const editable = canEdit(role);
   const annualSum = useMemo(
     () => (bid: string) => summarize(yearTxns.filter((t) => t.brand_id === bid)),
@@ -160,33 +168,49 @@ export default function FeeSplitPage() {
     [payouts]
   );
 
-  // Buat pencairan: satu baris per penerima, jumlah DIBEKUKAN saat dibuat.
-  // ignoreDuplicates: baris yang sudah ada TIDAK ditimpa — klik ulang hanya
-  // menambah penerima yang belum ada, tidak mengubah jumlah lama.
   async function createPayouts() {
     if (!editable) return;
     const sb = getSupabase();
     if (!sb) return;
-    const rows: { brand_id: string; year: number; recipient_name: string; pct_of_dividend: number; amount: number; status: string }[] = [];
+    const rows: {
+      brand_id: string;
+      year: number;
+      recipient_name: string;
+      pct_of_dividend: number;
+      amount: number;
+      status: string;
+    }[] = [];
     for (const s of visibleSplits) {
       const fee = annualFee(s);
       if (fee.dividend <= 0) continue;
-      const pctByName = new Map((s.dividend_recipients ?? []).map((r) => [r.name, r.pct_of_dividend]));
+      const pctByName = new Map(
+        (s.dividend_recipients ?? []).map((r) => [r.name, r.pct_of_dividend])
+      );
       for (const r of fee.dividendBreakdown) {
         rows.push({
-          brand_id: s.brand_id, year, recipient_name: r.name,
-          pct_of_dividend: pctByName.get(r.name) ?? 0, amount: r.amount, status: "belum_dibayar",
+          brand_id: s.brand_id,
+          year,
+          recipient_name: r.name,
+          pct_of_dividend: pctByName.get(r.name) ?? 0,
+          amount: r.amount,
+          status: "belum_dibayar",
         });
       }
     }
     if (rows.length === 0) {
-      setDivMsg(`Tidak ada dividen untuk dicairkan di ${year} (laba tahunan ≤ 0 untuk brand yang tampil).`);
+      setDivMsg(
+        `Tidak ada dividen untuk dicairkan di ${year} (laba tahunan ≤ 0 untuk brand yang tampil).`
+      );
       return;
     }
-    const { error } = await sb.from("dividend_payouts").upsert(rows, { onConflict: "brand_id,year,recipient_name", ignoreDuplicates: true });
+    const { error } = await sb
+      .from("dividend_payouts")
+      .upsert(rows, { onConflict: "brand_id,year,recipient_name", ignoreDuplicates: true });
     if (error) setDivMsg("Gagal buat pencairan: " + error.message);
     else {
-      setDivMsg(`Pencairan dividen ${year} dibuat (${rows.length} penerima). Jumlah dibekukan saat dibuat — laba sesudah ini tidak mengubahnya.`);
+      setDivMsg(
+        `Pencairan dividen ${year} dibuat (${rows.length} penerima). Jumlah dibekukan saat dibuat.`
+      );
       loadAnnual(year);
     }
   }
@@ -196,10 +220,13 @@ export default function FeeSplitPage() {
     const sb = getSupabase();
     if (!sb) return;
     const paid = p.status !== "sudah_dibayar";
-    const { error } = await sb.from("dividend_payouts").update({
-      status: paid ? "sudah_dibayar" : "belum_dibayar",
-      paid_at: paid ? new Date().toISOString() : null,
-    }).eq("id", p.id);
+    const { error } = await sb
+      .from("dividend_payouts")
+      .update({
+        status: paid ? "sudah_dibayar" : "belum_dibayar",
+        paid_at: paid ? new Date().toISOString() : null,
+      })
+      .eq("id", p.id);
     if (error) setDivMsg("Gagal ubah status: " + error.message);
     else loadAnnual(year);
   }
@@ -217,14 +244,15 @@ export default function FeeSplitPage() {
   }
 
   function waLinkDiv(p: DividendPayout): string {
-    const text = `Slip Dividen — PT Vektora Teknologi Nusantara\n${payoutLabel || p.recipient_name} · ${p.brands?.name ?? ""}\nTahun: ${p.year}\nBagian dividen: ${p.pct_of_dividend}% = ${formatIDR(p.amount)}\nStatus: ${p.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}`;
+    const text = `Slip Dividen — PT Vektora Teknologi Nusantara\n${
+      payoutLabel || p.recipient_name
+    } · ${p.brands?.name ?? ""}\nTahun: ${p.year}\nBagian dividen: ${p.pct_of_dividend}% = ${formatIDR(
+      p.amount
+    )}\nStatus: ${p.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }
 
-  // ---------- Slip fee per bulan (dokumen tampilan, bukan tabel baru) ----------
-  // Dihitung dari transaksi bulan itu SAJA (query rentang tanggal),
-  // sama polanya dengan laba tahunan di atas.
-  async function loadMonthTxns(brandId: string, month: string) {
+  async function loadMonthTxns(bId: string, month: string) {
     const sb = getSupabase();
     if (!sb) return;
     const [y, m] = month.split("-").map(Number);
@@ -232,7 +260,7 @@ export default function FeeSplitPage() {
     const { data } = await sb
       .from("transactions")
       .select("*")
-      .eq("brand_id", brandId)
+      .eq("brand_id", bId)
       .gte("txn_date", `${month}-01`)
       .lte("txn_date", `${month}-${String(lastDay).padStart(2, "0")}`)
       .limit(5000);
@@ -245,8 +273,6 @@ export default function FeeSplitPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feeSlip, feeSlipMonth]);
 
-  // Data slip fee yang sedang dibuka: dicari dari breakdown bulan itu
-  // berdasarkan nama penerima (nama unik per daftar penerima).
   const feeSlipData = useMemo(() => {
     if (!feeSlip) return null;
     const split = splits.find((s) => s.id === feeSlip.splitId);
@@ -259,36 +285,51 @@ export default function FeeSplitPage() {
         : fee.dividendBreakdown.find((r) => r.name === feeSlip.name);
     if (!row) return null;
     return { split, net, fee, row, label: recipientLabel(row.name, row.profile_id) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feeSlip, splits, monthTxns, profileById]);
 
   function waLinkFee(): string {
     if (!feeSlip || !feeSlipData) return "";
-    const { split, row } = feeSlipData;
-    const label = feeSlipData.label;
-    const text = `Slip ${label} — PT Vektora Teknologi Nusantara\n${label} · ${split.brands?.name ?? ""}\nPeriode: ${feeSlipMonth}\nBagian ${feeSlip.kind === "fee" ? "Management Fee" : "dividen"}: ${row.pct}% = ${formatIDR(row.amount)}`;
+    const { split, row, label } = feeSlipData;
+    const text = `Slip ${label} — PT Vektora Teknologi Nusantara\n${label} · ${
+      split.brands?.name ?? ""
+    }\nPeriode: ${feeSlipMonth}\nBagian ${
+      feeSlip.kind === "fee" ? "Management Fee" : "dividen"
+    }: ${row.pct}% = ${formatIDR(row.amount)}`;
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }
 
-  async function save(e: React.FormEvent, split: FeeSplitRow, patch: Partial<FeeSplitRow>) {
+  async function savePct(e: React.FormEvent, split: FeeSplitRow) {
     e.preventDefault();
     if (!canEditFeeSplit(role)) return;
     const sb = getSupabase();
     if (!sb) return;
-    const next = { ...split, ...patch };
-    if (Number(next.dividend_pct) + Number(next.management_fee_pct) + Number(next.retained_pct) !== 100) {
-      setMsg("Total persentase harus 100%.");
+    const pd = pctDrafts[split.id] ?? {
+      dividend_pct: split.dividend_pct,
+      management_fee_pct: split.management_fee_pct,
+      retained_pct: split.retained_pct,
+    };
+    const totalPct =
+      Number(pd.dividend_pct) + Number(pd.management_fee_pct) + Number(pd.retained_pct);
+    if (Math.round(totalPct * 100) !== 10000) {
+      setMsg(`Total persentase saat ini ${totalPct}%, harus tepat 100%.`);
       return;
     }
-    const { error } = await sb.from("fee_splits").update({
-      dividend_pct: next.dividend_pct, management_fee_pct: next.management_fee_pct, retained_pct: next.retained_pct,
-    }).eq("id", split.id);
+    const { error } = await sb
+      .from("fee_splits")
+      .update({
+        dividend_pct: Number(pd.dividend_pct),
+        management_fee_pct: Number(pd.management_fee_pct),
+        retained_pct: Number(pd.retained_pct),
+      })
+      .eq("id", split.id);
     if (error) setMsg("Gagal simpan: " + error.message);
-    else { setMsg("Fee split tersimpan."); load(); }
+    else {
+      setMsg(`Rasio pembagian fee ${split.brands?.name ?? ""} berhasil disimpan.`);
+      load();
+    }
   }
 
-  // ---------- Editor penerima fee (admin saja, 24 Nov 2026) ----------
-  // Aturan: daftar boleh kosong (belum ada penerima), tapi bila ada isinya
-  // total % HARUS 100% dari pool-nya — kalau bukan 100%, simpan ditolak.
   function draftTotal(list: RecipientDraft[]): number {
     return list.reduce((s, r) => s + (Number(r.pct) || 0), 0);
   }
@@ -299,25 +340,52 @@ export default function FeeSplitPage() {
     if (!d) return;
     const divTotal = draftTotal(d.dividend);
     const feeTotal = draftTotal(d.fee);
-    if (d.dividend.length > 0 && divTotal !== 100) {
-      setMsg(`Total % penerima dividen ${split.brands?.name ?? ""} = ${divTotal}%, harus 100%. Perbaiki dulu sebelum simpan.`);
+    if (d.dividend.length > 0 && Math.round(divTotal * 100) !== 10000) {
+      setMsg(
+        `Total % penerima dividen ${split.brands?.name ?? ""} = ${divTotal}%, harus tepat 100%.`
+      );
       return;
     }
-    if (d.fee.length > 0 && feeTotal !== 100) {
-      setMsg(`Total % penerima Management Fee ${split.brands?.name ?? ""} = ${feeTotal}%, harus 100%. Perbaiki dulu sebelum simpan.`);
+    if (d.fee.length > 0 && Math.round(feeTotal * 100) !== 10000) {
+      setMsg(
+        `Total % penerima Management Fee ${
+          split.brands?.name ?? ""
+        } = ${feeTotal}%, harus tepat 100%.`
+      );
       return;
     }
     const sb = getSupabase();
     if (!sb) return;
-    const { error } = await sb.from("fee_splits").update({
-      dividend_recipients: d.dividend.map((r) => ({ name: r.name.trim(), pct_of_dividend: Number(r.pct) || 0, employee_id: r.employee_id || null, profile_id: r.profile_id || null })),
-      management_fee_recipients: d.fee.map((r) => ({ name: r.name.trim(), pct_of_fee: Number(r.pct) || 0, employee_id: r.employee_id || null, profile_id: r.profile_id || null })),
-    }).eq("id", split.id);
+    const { error } = await sb
+      .from("fee_splits")
+      .update({
+        dividend_recipients: d.dividend.map((r) => ({
+          name: r.name.trim(),
+          pct_of_dividend: Number(r.pct) || 0,
+          employee_id: r.employee_id || null,
+          profile_id: r.profile_id || null,
+        })),
+        management_fee_recipients: d.fee.map((r) => ({
+          name: r.name.trim(),
+          pct_of_fee: Number(r.pct) || 0,
+          employee_id: r.employee_id || null,
+          profile_id: r.profile_id || null,
+        })),
+      })
+      .eq("id", split.id);
     if (error) setMsg("Gagal simpan penerima: " + error.message);
-    else { setMsg("Daftar penerima tersimpan."); load(); }
+    else {
+      setMsg(`Daftar penerima fee & dividen ${split.brands?.name ?? ""} tersimpan.`);
+      load();
+    }
   }
 
-  function updateDraft(splitId: string, kind: "dividend" | "fee", idx: number, patch: Partial<RecipientDraft>) {
+  function updateDraft(
+    splitId: string,
+    kind: "dividend" | "fee",
+    idx: number,
+    patch: Partial<RecipientDraft>
+  ) {
     setDrafts((prev) => {
       const cur = prev[splitId];
       if (!cur) return prev;
@@ -331,7 +399,13 @@ export default function FeeSplitPage() {
     setDrafts((prev) => {
       const cur = prev[splitId];
       if (!cur) return prev;
-      return { ...prev, [splitId]: { ...cur, [kind]: [...cur[kind], { name: "", pct: 0, employee_id: null, profile_id: null }] } };
+      return {
+        ...prev,
+        [splitId]: {
+          ...cur,
+          [kind]: [...cur[kind], { name: "", pct: 0, employee_id: null, profile_id: null }],
+        },
+      };
     });
   }
 
@@ -346,169 +420,429 @@ export default function FeeSplitPage() {
   }
 
   if (!isSupabaseConfigured) return <EmptySupabase />;
-  if (loading || authLoading) return <p className="text-slate-500">Memuat…</p>;
+  if (loading || authLoading) return <p className="text-blue-200/70">Memuat pembagian fee…</p>;
+  if (!canViewOperations(role)) return <AccessDenied />;
+
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold">Pembagian Fee</h2><BrandSelect brands={brands} value={brandId} onChange={setBrandId} /></div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-white">Pembagian Fee &amp; Dividen</h2>
+          <p className="text-xs text-blue-200/75">
+            Distribusi Laba Bersih per Brand ke Dividen Pemodal, Management Fee, dan Laba Ditahan Perusahaan.
+          </p>
+        </div>
+        <BrandSelect brands={brands} value={brandId} onChange={setBrandId} />
+      </div>
+
+      {/* Ringkasan Laba Per Brand */}
       <Card>
-        <p className="text-sm text-slate-600">
-          Laba bersih dihitung <b>per brand</b> dari transaksi brand itu sendiri (Income − Pengeluaran
-          terhitung; Belum reimburse tidak masuk hitungan). <b>Bila laba ≤ 0, semua pembagian = Rp0.</b>
+        <p className="text-xs text-blue-100/80">
+          Laba bersih dihitung <b className="text-white">terpisah per brand</b> (Income − Pengeluaran Lunas; Belum
+          reimburse &amp; cicilan hutang tidak mengurangi laba). <b className="text-amber-200">Bila laba ≤ Rp0, distribusi otomatis Rp0.</b>
         </p>
-        <ul className="mt-2 space-y-1 text-sm">
+        <ul className="mt-3 space-y-2 text-sm">
           {visibleSplits.map((s) => {
             const bs = brandSum(s.brand_id);
             return (
-              <li key={s.id} className="flex flex-wrap justify-between gap-2">
-                <span>{s.brands?.name}</span>
-                <span>
-                  Laba <b>{formatIDR(bs.net)}</b> (Income {formatIDR(bs.income)} − Pengeluaran{" "}
-                  {formatIDR(bs.expense)})
+              <li
+                key={s.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5"
+              >
+                <span className="font-bold text-white">{s.brands?.name}</span>
+                <span className="text-xs text-slate-300">
+                  Laba Bersih: <b className="text-sm text-emerald-300">{formatIDR(bs.net)}</b> (Income{" "}
+                  {formatIDR(bs.income)} − Pengeluaran {formatIDR(bs.expense)})
                 </span>
               </li>
             );
           })}
-          <li className="flex flex-wrap justify-between gap-2 border-t pt-1">
-            <span>Total yang tampil</span>
-            <b>{formatIDR(totalNet)}</b>
+          <li className="flex flex-wrap justify-between gap-2 border-t border-white/10 pt-2 text-sm">
+            <span className="text-slate-300">Total Laba Bersih Brand yang Ditampilkan</span>
+            <b className="text-white">{formatIDR(totalNet)}</b>
           </li>
         </ul>
-        {msg && <p className="mt-2 text-sm">{msg}</p>}
+        {msg && (
+          <p className="mt-3 rounded-xl border border-blue-400/30 bg-blue-500/15 px-3 py-2 text-xs text-blue-200">
+            {msg}
+          </p>
+        )}
       </Card>
+
+      {/* Kartu Konfigurasi & Rincian per Brand */}
       {visibleSplits.map((s) => {
         const bs = brandSum(s.brand_id);
         const fee = computeFeeSplit(bs.net, s);
+        const pd = pctDrafts[s.id] ?? {
+          dividend_pct: s.dividend_pct,
+          management_fee_pct: s.management_fee_pct,
+          retained_pct: s.retained_pct,
+        };
+        const sumPct =
+          (Number(pd.dividend_pct) || 0) +
+          (Number(pd.management_fee_pct) || 0) +
+          (Number(pd.retained_pct) || 0);
+
         return (
           <Card key={s.id}>
-            <h3 className="font-bold">{s.brands?.name} — {s.dividend_pct}% / {s.management_fee_pct}% / {s.retained_pct}%</h3>
-            <p className="text-sm text-slate-600">
-              Laba {s.brands?.name}: <b>{formatIDR(bs.net)}</b>
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-lg font-bold text-white">
+                  {s.brands?.name} — Rasio {s.dividend_pct}% / {s.management_fee_pct}% / {s.retained_pct}%
+                </h3>
+                <p className="text-xs text-blue-200/80">
+                  Laba Bersih {s.brands?.name}: <b className="text-white">{formatIDR(bs.net)}</b>
+                </p>
+              </div>
+              <span className="rounded-full bg-blue-500/20 px-3 py-1 text-xs font-semibold text-blue-200 ring-1 ring-blue-400/30">
+                Dividen / Mgmt Fee / Ditahan
+              </span>
+            </div>
+
             {bs.net <= 0 && (
-              <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                Belum ada transaksi / belum ada laba — pembagian Rp0. Bukan angka brand lain.
+              <p className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3.5 py-2 text-xs text-amber-200">
+                Belum ada transaksi / laba bersih masih ≤ Rp0 — seluruh pembagian untuk brand ini Rp0.
               </p>
             )}
-            {canEditFeeSplit(role) ? (<form onSubmit={(e) => save(e, s, {})} className="mt-3 flex flex-wrap items-end gap-3">
-              <label className="text-sm">Dividen % <input type="number" step="0.01" defaultValue={s.dividend_pct} onChange={(e) => { s.dividend_pct = Number(e.target.value); }} className="ml-1 w-20 rounded-xl border px-2 py-1" /></label>
-              <label className="text-sm">Management Fee % <input type="number" step="0.01" defaultValue={s.management_fee_pct} onChange={(e) => { s.management_fee_pct = Number(e.target.value); }} className="ml-1 w-20 rounded-xl border px-2 py-1" /></label>
-              <label className="text-sm">Ditahan % <input type="number" step="0.01" defaultValue={s.retained_pct} onChange={(e) => { s.retained_pct = Number(e.target.value); }} className="ml-1 w-20 rounded-xl border px-2 py-1" /></label>
-              <button className="rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">Simpan persentase</button>
-            </form>) : (<ReadOnlyNotice role={role} />)}
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl bg-blue-50 p-4"><p className="text-xs font-semibold uppercase text-slate-500">Dividen</p><p className="text-xl font-bold">{formatIDR(fee.dividend)}</p>
-                {fee.dividendBreakdown.map((r) => (
-                  <p key={r.name} className="text-sm text-slate-600">{recipientLabel(r.name, r.profile_id)} — {r.pct}%: <b>{formatIDR(r.amount)}</b>
-                    {r.employee_id && <> · <Link href="/payslips" className="font-semibold text-vektora-600 underline">Lihat slip gaji</Link></>}
-                    {" · "}<button onClick={() => setFeeSlip({ kind: "dividend", splitId: s.id, name: r.name })} className="font-semibold text-vektora-600 underline">Slip</button>
-                  </p>
-                ))}
-                {fee.dividendBreakdown.length === 0 && <p className="text-sm text-slate-500">Belum ada penerima dividen.</p>}
+
+            {/* Form Persentase Terkontrol dengan Validasi Live 100% */}
+            {canEditFeeSplit(role) ? (
+              <form
+                onSubmit={(e) => savePct(e, s)}
+                className="mt-4 flex flex-wrap items-end gap-3 rounded-2xl border border-white/10 bg-black/20 p-3.5"
+              >
+                <label className="text-xs text-blue-200/80">
+                  Dividen (%)
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={pd.dividend_pct}
+                    onChange={(e) =>
+                      setPctDrafts((prev) => ({
+                        ...prev,
+                        [s.id]: { ...pd, dividend_pct: Number(e.target.value) },
+                      }))
+                    }
+                    className="mt-1 block w-24 rounded-xl border px-3 py-1.5 text-sm font-bold"
+                  />
+                </label>
+                <label className="text-xs text-blue-200/80">
+                  Management Fee (%)
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={pd.management_fee_pct}
+                    onChange={(e) =>
+                      setPctDrafts((prev) => ({
+                        ...prev,
+                        [s.id]: { ...pd, management_fee_pct: Number(e.target.value) },
+                      }))
+                    }
+                    className="mt-1 block w-24 rounded-xl border px-3 py-1.5 text-sm font-bold"
+                  />
+                </label>
+                <label className="text-xs text-blue-200/80">
+                  Ditahan Perusahaan (%)
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={pd.retained_pct}
+                    onChange={(e) =>
+                      setPctDrafts((prev) => ({
+                        ...prev,
+                        [s.id]: { ...pd, retained_pct: Number(e.target.value) },
+                      }))
+                    }
+                    className="mt-1 block w-24 rounded-xl border px-3 py-1.5 text-sm font-bold"
+                  />
+                </label>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`rounded-xl px-3 py-1.5 text-xs font-bold ${
+                      sumPct === 100
+                        ? "bg-emerald-500/20 text-emerald-200"
+                        : "bg-rose-500/20 text-rose-200"
+                    }`}
+                  >
+                    Total: {sumPct}%
+                  </span>
+                  <button
+                    type="submit"
+                    disabled={sumPct !== 100}
+                    className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow shadow-blue-600/30 transition hover:bg-blue-500 disabled:opacity-40"
+                  >
+                    Simpan Rasio
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="mt-3">
+                <ReadOnlyNotice role={role} />
               </div>
-              <div className="rounded-2xl bg-blue-50 p-4"><p className="text-xs font-semibold uppercase text-slate-500">Management Fee</p><p className="text-xl font-bold">{formatIDR(fee.managementFee)}</p>
-                {fee.feeBreakdown.map((r) => (
-                  <p key={r.name} className="text-sm text-slate-600">{recipientLabel(r.name, r.profile_id)} — {r.pct}% dari fee pool: <b>{formatIDR(r.amount)}</b>
-                    {r.employee_id && <> · <Link href="/payslips" className="font-semibold text-vektora-600 underline">Lihat slip gaji</Link></>}
-                    {" · "}<button onClick={() => setFeeSlip({ kind: "fee", splitId: s.id, name: r.name })} className="font-semibold text-vektora-600 underline">Slip</button>
-                  </p>
-                ))}
-                {fee.feeBreakdown.length === 0 && <p className="text-sm text-slate-500">Belum ada penerima Management Fee.</p>}
+            )}
+
+            {/* 3 Kolom Distribusi: Dividen, Management Fee, Ditahan */}
+            <div className="mt-4 grid grid-cols-1 gap-3.5 lg:grid-cols-3">
+              {/* Dividen */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/75">
+                  Pool Dividen ({s.dividend_pct}%)
+                </p>
+                <p className="mt-1 text-2xl font-black text-white">{formatIDR(fee.dividend)}</p>
+                <ul className="mt-3 space-y-2">
+                  {fee.dividendBreakdown.map((r) => (
+                    <li
+                      key={r.name}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/5 bg-black/20 px-3 py-2 text-xs"
+                    >
+                      <div>
+                        <p className="font-semibold text-white">{recipientLabel(r.name, r.profile_id)}</p>
+                        <p className="text-slate-400">
+                          {r.pct}% · <b className="text-emerald-300">{formatIDR(r.amount)}</b>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFeeSlip({ kind: "dividend", splitId: s.id, name: r.name })}
+                        className="rounded-lg border border-blue-400/30 bg-blue-500/20 px-2.5 py-1 text-[11px] font-semibold text-blue-200 hover:bg-blue-500/30"
+                      >
+                        Cetak Slip Dividen
+                      </button>
+                    </li>
+                  ))}
+                  {fee.dividendBreakdown.length === 0 && (
+                    <li className="text-xs text-slate-400">Belum ada penerima dividen.</li>
+                  )}
+                </ul>
               </div>
-              <div className="rounded-2xl bg-blue-50 p-4"><p className="text-xs font-semibold uppercase text-slate-500">Ditahan perusahaan</p><p className="text-xl font-bold">{formatIDR(fee.retained)}</p><p className="text-sm text-slate-600">Untuk perusahaan, bukan dibagikan.</p></div>
+
+              {/* Management Fee */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/75">
+                  Pool Management Fee ({s.management_fee_pct}%)
+                </p>
+                <p className="mt-1 text-2xl font-black text-white">{formatIDR(fee.managementFee)}</p>
+                <ul className="mt-3 space-y-2">
+                  {fee.feeBreakdown.map((r) => (
+                    <li
+                      key={r.name}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/5 bg-black/20 px-3 py-2 text-xs"
+                    >
+                      <div>
+                        <p className="font-semibold text-white">{recipientLabel(r.name, r.profile_id)}</p>
+                        <p className="text-slate-400">
+                          {r.pct}% pool · <b className="text-blue-300">{formatIDR(r.amount)}</b>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setFeeSlip({ kind: "fee", splitId: s.id, name: r.name })}
+                          className="rounded-lg border border-blue-400/30 bg-blue-500/20 px-2.5 py-1 text-[11px] font-semibold text-blue-200 hover:bg-blue-500/30"
+                        >
+                          Cetak Slip Fee
+                        </button>
+                        {r.employee_id && (
+                          <Link
+                            href="/payslips"
+                            title="Buka halaman Slip Gaji OPEX"
+                            className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-slate-300 hover:bg-white/10"
+                          >
+                            Gaji OPEX ↗
+                          </Link>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                  {fee.feeBreakdown.length === 0 && (
+                    <li className="text-xs text-slate-400">Belum ada penerima Management Fee.</li>
+                  )}
+                </ul>
+              </div>
+
+              {/* Ditahan Perusahaan */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/75">
+                  Laba Ditahan Perusahaan ({s.retained_pct}%)
+                </p>
+                <p className="mt-1 text-2xl font-black text-white">{formatIDR(fee.retained)}</p>
+                <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                  Cadangan kas &amp; modal putar kembali untuk ekspansi brand {s.brands?.name} (tidak dibagikan ke
+                  individu).
+                </p>
+              </div>
             </div>
+
+            {/* Editor Penerima Fee (Khusus Admin) */}
             {canEditFeeSplit(role) && drafts[s.id] && (
-              <div className="mt-4 rounded-2xl border border-slate-200 p-4">
-                <h4 className="font-bold">Edit penerima fee</h4>
-                <p className="mt-1 text-xs text-slate-500">
-                  Tambah / hapus / ubah % tiap penerima. Total % tiap daftar harus 100% — simpan ditolak
-                  bila bukan 100%. Pilih "Orang" untuk menghubungkan penerima ke orang terdaftar
-                  (profil apa saja: tim, investor, komisaris). Satu orang bisa pegang dua peran — contoh
-                  Febri: investor (dividen 70%) SEKALIGUS komisaris (fee 7%), jadi dia dapat dividen
-                  dan fee; hubungkan kedua barisnya ke profil Febri (kursi komisarisnya — Utama atau 2 —
-                  dipilih di sini, jangan ditebak). Bila profil yang dipilih punya baris karyawan,
-                  tautan slip gaji ikut terisi otomatis. Kosongkan bila penerima belum diisi orangnya.
+              <details className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                <summary className="cursor-pointer text-sm font-bold text-blue-200 hover:text-white">
+                  ⚙ Edit Daftar &amp; Porsi Penerima Fee / Dividen ({s.brands?.name})
+                </summary>
+                <p className="mt-2 text-xs text-slate-400">
+                  Total porsi tiap daftar harus tepat 100%. Hubungkan tiap posisi ke akun profil terdaftar agar nama
+                  pejabat otomatis muncul di slip.
                 </p>
                 {(["dividend", "fee"] as const).map((kind) => {
                   const list = drafts[s.id][kind];
                   const total = draftTotal(list);
                   return (
-                    <div key={kind} className="mt-3">
-                      <p className="text-sm font-semibold">{kind === "dividend" ? "Penerima Dividen" : "Penerima Management Fee"} — total {total}% {list.length > 0 && total !== 100 && <span className="text-rose-600">(harus 100%)</span>}</p>
+                    <div key={kind} className="mt-4 border-t border-white/10 pt-3">
+                      <p className="text-xs font-bold uppercase tracking-wider text-white">
+                        {kind === "dividend" ? "Penerima Dividen" : "Penerima Management Fee"} — Total{" "}
+                        <span className={total === 100 ? "text-emerald-300" : "text-rose-300"}>
+                          {total}%
+                        </span>{" "}
+                        {list.length > 0 && total !== 100 && (
+                          <span className="text-rose-300">(Wajib 100%)</span>
+                        )}
+                      </p>
                       <div className="mt-2 space-y-2">
                         {list.map((r, idx) => (
                           <div key={idx} className="flex flex-wrap items-center gap-2">
-                            <input value={r.name} onChange={(e) => updateDraft(s.id, kind, idx, { name: e.target.value })} placeholder="Nama penerima" className="min-w-0 flex-1 rounded-xl border px-2 py-1 text-sm" />
-                            <label className="flex items-center gap-1 text-sm"><input type="number" min="0" max="100" step="0.01" value={r.pct} onChange={(e) => updateDraft(s.id, kind, idx, { pct: Number(e.target.value) })} className="w-20 rounded-xl border px-2 py-1 text-sm" />%</label>
-                            <select value={r.profile_id ?? ""} onChange={(e) => pickProfileForDraft(s.id, kind, idx, e.target.value)} className="rounded-xl border px-2 py-1 text-sm">
-                              <option value="">Orang — (belum diisi)</option>
+                            <input
+                              value={r.name}
+                              onChange={(e) =>
+                                updateDraft(s.id, kind, idx, { name: e.target.value })
+                              }
+                              placeholder="Jabatan / Nama penerima"
+                              className="min-w-0 flex-1 rounded-xl border px-3 py-1.5 text-xs"
+                            />
+                            <label className="flex items-center gap-1 text-xs">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={r.pct}
+                                onChange={(e) =>
+                                  updateDraft(s.id, kind, idx, { pct: Number(e.target.value) })
+                                }
+                                className="w-20 rounded-xl border px-2.5 py-1.5 text-xs font-bold"
+                              />
+                              %
+                            </label>
+                            <select
+                              value={r.profile_id ?? ""}
+                              onChange={(e) =>
+                                pickProfileForDraft(s.id, kind, idx, e.target.value)
+                              }
+                              className="rounded-xl border px-2.5 py-1.5 text-xs"
+                            >
+                              <option value="">Hubungkan ke Profil — (opsional)</option>
                               {profiles.map((p) => (
-                                <option key={p.id} value={p.id}>{p.full_name ?? p.email} — {ROLE_LABELS[p.role]}</option>
+                                <option key={p.id} value={p.id}>
+                                  {p.full_name ?? p.email} — {ROLE_LABELS[p.role]}
+                                </option>
                               ))}
                             </select>
-                            <button onClick={() => removeDraftRow(s.id, kind, idx)} className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">Hapus</button>
+                            <button
+                              type="button"
+                              onClick={() => removeDraftRow(s.id, kind, idx)}
+                              className="rounded-xl border border-rose-400/25 bg-rose-500/15 px-2.5 py-1 text-xs font-semibold text-rose-200 hover:bg-rose-500/30"
+                            >
+                              Hapus
+                            </button>
                           </div>
                         ))}
-                        {list.length === 0 && <p className="text-xs text-slate-500">Belum ada penerima — tambah di bawah.</p>}
                       </div>
-                      <button onClick={() => addDraftRow(s.id, kind)} className="mt-2 rounded-xl bg-slate-100 px-3 py-1 text-xs font-semibold">+ Tambah penerima</button>
+                      <button
+                        type="button"
+                        onClick={() => addDraftRow(s.id, kind)}
+                        className="mt-2 rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-blue-200 hover:bg-white/10"
+                      >
+                        + Tambah Baris Penerima
+                      </button>
                     </div>
                   );
                 })}
-                <button onClick={() => saveRecipients(s)} className="mt-4 rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">Simpan penerima</button>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => saveRecipients(s)}
+                  className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow shadow-blue-600/30 hover:bg-blue-500"
+                >
+                  Simpan Daftar Penerima
+                </button>
+              </details>
             )}
-            <p className="mt-3 text-xs text-slate-500">Contoh WhereIsIt Nov 2026 (setelah seed-latest): laba Rp417.118 → Dividen Rp83.424 (Febri 70% Rp58.397 / Matias 30% Rp25.027), Management Fee Rp229.415, Ditahan Rp104.279. Penerima Management Fee ikut sheet "Struktur Pembagian": Dirut 25%, Dirops 20%, Komisaris Utama 7%, Komisaris 2 7%, Keuangan 10.25%, Pemasaran 10.25%, Operasional 10.25%, Administrasi 10.25%. Daftar penerima diubah di editor "Edit penerima fee" di atas (admin saja); posisi fungsi (Keuangan, Pemasaran, dst.) dihubungkan ke orangnya lewat dropdown Orang tanpa mengubah %. Satu orang bisa pegang dua peran: Febri = investor (dividen 70%) + komisaris (fee 7%) — hubungkan kedua barisnya ke profil Febri; kursi komisarisnya (Utama atau 2) dipilih di editor, jangan ditebak.</p>
           </Card>
         );
       })}
-      {visibleSplits.length === 0 && <Card><p className="text-sm text-slate-500">Belum ada konfigurasi fee split untuk brand ini.</p></Card>}
 
-      {/* ---------- Dividen Tahunan (cair 1x per tahun) ---------- */}
+      {/* Dividen Tahunan */}
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-bold">Dividen Tahunan</h3>
-          <label className="text-sm">Tahun
-            <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="ml-2 rounded-xl border bg-white px-3 py-2">
-              {[2025, 2026, 2027].map((y) => <option key={y} value={y}>{y}</option>)}
+          <div>
+            <h3 className="text-base font-bold text-white">Pencairan Dividen Tahunan</h3>
+            <p className="text-xs text-slate-400">
+              Dicairkan 1x per tahun dari laba bersih tahun berjalan. Nilai dibekukan saat pencairan dibuat.
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-xs font-semibold text-blue-200">
+            Tahun Buku
+            <select
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+              className="rounded-xl border px-3 py-1.5 text-xs font-bold text-white"
+            >
+              {[2025, 2026, 2027].map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
             </select>
           </label>
         </div>
-        <p className="mt-2 text-sm text-slate-600">
-          Dividen dicairkan <b>satu kali setahun</b> dari laba bersih tahun itu (Income − Pengeluaran
-          terhitung; Belum reimburse dan pembayaran hutang tidak masuk hitungan). Jumlah per penerima{" "}
-          <b>dibekukan saat pencairan dibuat</b> — laba yang masuk sesudah itu tidak mengubah jumlahnya.
-        </p>
+
         {visibleSplits.map((s) => {
           const bs = annualSum(s.brand_id);
           const fee = annualFee(s);
           const paid = payoutsFor(s.brand_id);
           return (
-            <div key={s.id} className="mt-4 border-t pt-3">
-              <p className="font-semibold">{s.brands?.name} — {year}</p>
-              <p className="text-sm text-slate-600">
-                Laba tahunan <b>{formatIDR(bs.net)}</b> (Income {formatIDR(bs.income)} − Pengeluaran{" "}
-                {formatIDR(bs.expense)}) · Dividen {s.dividend_pct}% = <b>{formatIDR(fee.dividend)}</b>
-              </p>
+            <div key={s.id} className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-bold text-white">
+                  {s.brands?.name} — Tahun {year}
+                </p>
+                <p className="text-xs text-slate-300">
+                  Laba Tahunan: <b className="text-white">{formatIDR(bs.net)}</b> · Total Dividen ({s.dividend_pct}%):{" "}
+                  <b className="text-emerald-300">{formatIDR(fee.dividend)}</b>
+                </p>
+              </div>
               {bs.net <= 0 && (
-                <p className="mt-1 text-sm text-amber-700">Belum ada laba tahun {year} — dividen Rp0.</p>
+                <p className="mt-2 text-xs text-amber-300">Belum ada laba bersih di tahun {year} — dividen Rp0.</p>
               )}
-              <ul className="mt-2 space-y-1 text-sm">
-                {fee.dividendBreakdown.map((r) => (
-                  <li key={r.name} className="flex flex-wrap justify-between gap-2">
-                    <span>{recipientLabel(r.name, r.profile_id)}</span><b>{formatIDR(r.amount)}</b>
-                  </li>
-                ))}
-              </ul>
               {paid.length > 0 && (
-                <ul className="mt-2 space-y-1 text-sm">
+                <ul className="mt-3 space-y-2 text-xs">
                   {paid.map((p) => (
-                    <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2">
-                      <span>{p.recipient_name} · {formatIDR(p.amount)} · {p.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}{p.sent_at ? ` · Terkirim ${p.sent_via ?? ""}` : ""}</span>
+                    <li
+                      key={p.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/25 px-3.5 py-2.5"
+                    >
+                      <span className="text-slate-200">
+                        <b className="text-white">{p.recipient_name}</b> · {formatIDR(p.amount)} ·{" "}
+                        <span
+                          className={
+                            p.status === "sudah_dibayar" ? "text-emerald-300" : "text-amber-300"
+                          }
+                        >
+                          {p.status === "sudah_dibayar" ? "Sudah dibayar" : "Belum dibayar"}
+                        </span>
+                        {p.sent_at ? ` · Terkirim (${p.sent_via})` : ""}
+                      </span>
                       <span className="flex items-center gap-2">
-                        <button onClick={() => setSelectedPayout(p)} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">Lihat slip</button>
+                        <button
+                          onClick={() => setSelectedPayout(p)}
+                          className="rounded-lg border border-blue-400/30 bg-blue-500/20 px-2.5 py-1 font-semibold text-blue-200 hover:bg-blue-500/30"
+                        >
+                          Buka Slip
+                        </button>
                         {editable && (
-                          <button onClick={() => togglePayout(p)} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">
-                            {p.status === "sudah_dibayar" ? "Batalkan" : "Tandai sudah dibayar"}
+                          <button
+                            onClick={() => togglePayout(p)}
+                            className="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 font-semibold text-slate-200 hover:bg-white/15"
+                          >
+                            {p.status === "sudah_dibayar" ? "Batalkan Lunas" : "✓ Tandai Dibayar"}
                           </button>
                         )}
                       </span>
@@ -519,106 +853,241 @@ export default function FeeSplitPage() {
             </div>
           );
         })}
-        {editable ? (
-          <button onClick={createPayouts} className="mt-4 rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">
-            Buat pencairan dividen {year}
+
+        {editable && (
+          <button
+            onClick={createPayouts}
+            className="mt-4 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow shadow-blue-600/30 hover:bg-blue-500"
+          >
+            Buat Pencairan Dividen {year}
           </button>
-        ) : (
-          <p className="mt-4 text-xs text-slate-500">Mode baca saja — hanya admin / management yang bisa membuat pencairan dan menandai dibayar.</p>
         )}
-        {divMsg && <p className="mt-2 text-sm">{divMsg}</p>}
+        {divMsg && <p className="mt-2 text-xs text-blue-200">{divMsg}</p>}
       </Card>
 
-      {/* ---------- Slip dividen (per pencairan) ---------- */}
+      {/* MODAL SLIP DIVIDEN TAHUNAN */}
       {selectedPayout && (
-        <Card className="payslip-print">
-          <div className="border-b pb-3">
-            <p className="text-xs font-semibold uppercase tracking-widest text-vektora-600">PT Vektora Teknologi Nusantara</p>
-            <h3 className="text-lg font-black">Slip Dividen</h3>
-            <p className="text-sm text-slate-500">Tahun {selectedPayout.year} · {payoutLabel} · {selectedPayout.brands?.name ?? ""}</p>
-          </div>
-          <div className="mt-3 space-y-1 text-sm">
-            <p className="flex justify-between"><span>Penerima</span><b>{payoutLabel}</b></p>
-            <p className="flex justify-between"><span>Brand</span><b>{selectedPayout.brands?.name ?? "—"}</b></p>
-            <p className="flex justify-between"><span>Bagian dividen</span><b>{selectedPayout.pct_of_dividend}%</b></p>
-            <p className="flex justify-between border-t pt-2 text-base"><span>Jumlah dividen</span><b>{formatIDR(selectedPayout.amount)}</b></p>
-            <p className="text-xs text-slate-500">Status: {selectedPayout.status === "sudah_dibayar" ? `Sudah dibayar${selectedPayout.paid_at ? " · " + formatDateID(selectedPayout.paid_at) : ""}` : "Belum dibayar"}{selectedPayout.sent_at ? ` · Terkirim ${selectedPayout.sent_via ?? ""} · ${formatDateID(selectedPayout.sent_at)}` : ""}</p>
-            <p className="text-xs text-slate-500">Jumlah dibekukan saat pencairan dibuat — laba sesudah itu tidak mengubah jumlah ini.</p>
-          </div>
-          <div className="mt-6 flex justify-between text-xs text-slate-500">
-            <span>Disetujui,<br /><br /><br />_________________<br />PT Vektora</span>
-            <span>Diterima oleh,<br /><br /><br />_________________<br />{payoutLabel}</span>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2 print:hidden">
-            <button onClick={() => window.print()} className="rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">Cetak slip</button>
-            <a href={waLinkDiv(selectedPayout)} target="_blank" rel="noreferrer" className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Bagikan via WhatsApp</a>
-            <button onClick={() => navigator.clipboard?.writeText(waLinkDiv(selectedPayout))} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold">Salin tautan slip</button>
-            {editable && (
-              <>
-                <select value={sendVia} onChange={(e) => setSendVia(e.target.value as "whatsapp" | "email" | "langsung")} className="rounded-xl border px-2 py-1 text-sm">
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="email">Email</option>
-                  <option value="langsung">Langsung</option>
-                </select>
-                <button onClick={() => updatePayout(selectedPayout, { sent_at: new Date().toISOString(), sent_via: sendVia })} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold">Tandai terkirim</button>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => setSelectedPayout(null)}
+        >
+          <div className="max-w-xl flex-1" onClick={(e) => e.stopPropagation()}>
+            <Card className="payslip-print">
+              <div className="flex items-start justify-between border-b border-white/10 pb-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">
+                    PT Vektora Teknologi Nusantara
+                  </p>
+                  <h3 className="text-lg font-black text-white">SLIP PENCAIRAN DIVIDEN</h3>
+                  <p className="text-xs text-slate-300">
+                    Tahun Buku {selectedPayout.year} · {payoutLabel} · {selectedPayout.brands?.name ?? ""}
+                  </p>
+                </div>
                 <button
-                  onClick={() =>
-                    updatePayout(
-                      selectedPayout,
-                      selectedPayout.status === "sudah_dibayar"
-                        ? { status: "belum_dibayar", paid_at: null }
-                        : { status: "sudah_dibayar", paid_at: new Date().toISOString() }
-                    )
-                  }
-                  className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold"
+                  onClick={() => setSelectedPayout(null)}
+                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white print:hidden"
                 >
-                  {selectedPayout.status === "sudah_dibayar" ? "Batalkan dibayar" : "Tandai sudah dibayar"}
+                  ✕ Tutup
                 </button>
-              </>
-            )}
-            <button onClick={() => setSelectedPayout(null)} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold">Tutup</button>
+              </div>
+              <div className="mt-4 space-y-2 text-sm">
+                <p className="flex justify-between">
+                  <span className="text-slate-300">Penerima</span>
+                  <b className="text-white">{payoutLabel}</b>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-slate-300">Brand</span>
+                  <b className="text-white">{selectedPayout.brands?.name ?? "—"}</b>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-slate-300">Porsi Dividen</span>
+                  <b className="text-white">{selectedPayout.pct_of_dividend}%</b>
+                </p>
+                <p className="flex justify-between rounded-xl border border-blue-400/30 bg-blue-500/15 p-3 text-base">
+                  <span className="font-bold text-blue-100">Total Dividen Diterima</span>
+                  <b className="text-white">{formatIDR(selectedPayout.amount)}</b>
+                </p>
+                <p className="text-xs text-slate-400">
+                  Status:{" "}
+                  {selectedPayout.status === "sudah_dibayar"
+                    ? `Sudah dibayar${selectedPayout.paid_at ? " · " + formatDateID(selectedPayout.paid_at) : ""}`
+                    : "Belum dibayar"}
+                </p>
+              </div>
+              <div className="mt-6 flex justify-between text-xs text-slate-400">
+                <span>
+                  Disetujui,
+                  <br />
+                  <br />
+                  <br />
+                  _________________<br />
+                  PT Vektora
+                </span>
+                <span className="text-right">
+                  Diterima oleh,
+                  <br />
+                  <br />
+                  <br />
+                  _________________<br />
+                  {payoutLabel}
+                </span>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2 border-t border-white/10 pt-3 print:hidden">
+                <button
+                  onClick={() => window.print()}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
+                >
+                  🖨 Cetak Slip
+                </button>
+                <a
+                  href={waLinkDiv(selectedPayout)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white"
+                >
+                  Kirim WhatsApp ↗
+                </a>
+                {editable && (
+                  <>
+                    <select
+                      value={sendVia}
+                      onChange={(e) => setSendVia(e.target.value as "whatsapp" | "email" | "langsung")}
+                      className="rounded-xl border px-2.5 py-1 text-xs"
+                    >
+                      <option value="whatsapp">WhatsApp</option>
+                      <option value="email">Email</option>
+                      <option value="langsung">Langsung</option>
+                    </select>
+                    <button
+                      onClick={() =>
+                        updatePayout(selectedPayout, {
+                          sent_at: new Date().toISOString(),
+                          sent_via: sendVia,
+                        })
+                      }
+                      className="rounded-xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white"
+                    >
+                      Catat Terkirim
+                    </button>
+                  </>
+                )}
+              </div>
+            </Card>
           </div>
-        </Card>
+        </div>
       )}
 
-      {/* ---------- Slip fee per bulan (semua penerima, termasuk direktur) ---------- */}
+      {/* MODAL SLIP MANAGEMENT FEE / DIVIDEN BULANAN */}
       {feeSlip && feeSlipData && (
-        <Card className="payslip-print">
-          <div className="border-b pb-3">
-            <p className="text-xs font-semibold uppercase tracking-widest text-vektora-600">PT Vektora Teknologi Nusantara</p>
-            <h3 className="text-lg font-black">Slip {feeSlip.kind === "fee" ? "Management Fee" : "Dividen"}</h3>
-            <p className="text-sm text-slate-500">{feeSlipData.label} · {feeSlipData.split.brands?.name ?? ""}</p>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => setFeeSlip(null)}
+        >
+          <div className="max-w-xl flex-1" onClick={(e) => e.stopPropagation()}>
+            <Card className="payslip-print">
+              <div className="flex items-start justify-between border-b border-white/10 pb-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">
+                    PT Vektora Teknologi Nusantara
+                  </p>
+                  <h3 className="text-lg font-black text-white">
+                    SLIP {feeSlip.kind === "fee" ? "MANAGEMENT FEE" : "DIVIDEN"}
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    {feeSlipData.label} · Brand {feeSlipData.split.brands?.name ?? ""}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setFeeSlip(null)}
+                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white print:hidden"
+                >
+                  ✕ Tutup
+                </button>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs print:hidden">
+                <label className="text-blue-200">
+                  Pilih Periode Bulan:
+                  <input
+                    type="month"
+                    value={feeSlipMonth}
+                    onChange={(e) => setFeeSlipMonth(e.target.value)}
+                    className="ml-2 rounded-xl border px-2.5 py-1 text-xs font-bold text-white"
+                  />
+                </label>
+              </div>
+              <div className="mt-4 space-y-2 text-sm">
+                <p className="flex justify-between">
+                  <span className="text-slate-300">Penerima</span>
+                  <b className="text-white">{feeSlipData.label}</b>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-slate-300">Brand</span>
+                  <b className="text-white">{feeSlipData.split.brands?.name ?? "—"}</b>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-slate-300">Periode</span>
+                  <b className="text-white">{feeSlipMonth}</b>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-slate-300">Laba Bersih Brand Bulan Itu</span>
+                  <b className="text-white">{formatIDR(feeSlipData.net)}</b>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-slate-300">
+                    Porsi {feeSlip.kind === "fee" ? "Management Fee" : "Dividen"}
+                  </span>
+                  <b className="text-white">{feeSlipData.row.pct}%</b>
+                </p>
+                <p className="flex justify-between rounded-xl border border-blue-400/30 bg-blue-500/15 p-3 text-base">
+                  <span className="font-bold text-blue-100">Nominal Diterima</span>
+                  <b className="text-white">{formatIDR(feeSlipData.row.amount)}</b>
+                </p>
+              </div>
+              <div className="mt-6 flex justify-between text-xs text-slate-400">
+                <span>
+                  Disetujui,
+                  <br />
+                  <br />
+                  <br />
+                  _________________<br />
+                  PT Vektora
+                </span>
+                <span className="text-right">
+                  Diterima oleh,
+                  <br />
+                  <br />
+                  <br />
+                  _________________<br />
+                  {feeSlipData.label}
+                </span>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2 border-t border-white/10 pt-3 print:hidden">
+                <button
+                  onClick={() => window.print()}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
+                >
+                  🖨 Cetak Slip
+                </button>
+                <a
+                  href={waLinkFee()}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white"
+                >
+                  Kirim WhatsApp ↗
+                </a>
+                <button
+                  onClick={() => navigator.clipboard?.writeText(waLinkFee())}
+                  className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white"
+                >
+                  Salin Tautan WA
+                </button>
+              </div>
+            </Card>
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm print:hidden">
-            <label>Periode
-              <input type="month" value={feeSlipMonth} onChange={(e) => setFeeSlipMonth(e.target.value)} className="ml-2 rounded-xl border px-2 py-1" />
-            </label>
-          </div>
-          <div className="mt-3 space-y-1 text-sm">
-            <p className="flex justify-between"><span>Penerima</span><b>{feeSlipData.label}</b></p>
-            <p className="flex justify-between"><span>Brand</span><b>{feeSlipData.split.brands?.name ?? "—"}</b></p>
-            <p className="flex justify-between"><span>Periode</span><b>{feeSlipMonth}</b></p>
-            <p className="flex justify-between"><span>Laba bersih brand bulan itu</span><b>{formatIDR(feeSlipData.net)}</b></p>
-            <p className="flex justify-between"><span>Bagian {feeSlip.kind === "fee" ? "Management Fee" : "dividen"}</span><b>{feeSlipData.row.pct}%</b></p>
-            <p className="flex justify-between border-t pt-2 text-base"><span>Jumlah</span><b>{formatIDR(feeSlipData.row.amount)}</b></p>
-            {feeSlipData.net <= 0 && <p className="text-xs text-amber-700">Belum ada laba bulan {feeSlipMonth} — bagian Rp0.</p>}
-            <p className="text-xs text-slate-500">
-              Slip ini dihitung dari transaksi live bulan {feeSlipMonth} (bukan dokumen tersimpan) — angka
-              berubah bila ada transaksi baru di bulan itu. Bagian ini dari {feeSlip.kind === "fee" ? "Management Fee" : "dividen"}, bukan gaji bulanan.
-            </p>
-          </div>
-          <div className="mt-6 flex justify-between text-xs text-slate-500">
-            <span>Disetujui,<br /><br /><br />_________________<br />PT Vektora</span>
-            <span>Diterima oleh,<br /><br /><br />_________________<br />{feeSlipData.label}</span>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2 print:hidden">
-            <button onClick={() => window.print()} className="rounded-xl bg-vektora-500 px-4 py-2 text-sm font-semibold text-white">Cetak slip</button>
-            <a href={waLinkFee()} target="_blank" rel="noreferrer" className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Bagikan via WhatsApp</a>
-            <button onClick={() => navigator.clipboard?.writeText(waLinkFee())} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold">Salin tautan slip</button>
-            <button onClick={() => setFeeSlip(null)} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold">Tutup</button>
-          </div>
-        </Card>
+        </div>
       )}
     </div>
   );
 }
+

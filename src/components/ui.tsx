@@ -3,31 +3,67 @@ import type { Brand } from "@/lib/types";
 
 export function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`min-w-0 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-100 sm:p-5 ${className}`}>{children}</div>
+    <div
+      className={`finora-surface min-w-0 rounded-3xl p-4 text-slate-100 sm:p-5 ${className}`}
+    >
+      {children}
+    </div>
   );
 }
 
-export function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+export function StatCard({
+  label,
+  value,
+  sub,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "default" | "positive" | "negative" | "warning";
+}) {
+  const toneClass =
+    tone === "positive"
+      ? "text-emerald-300"
+      : tone === "negative"
+      ? "text-rose-300"
+      : tone === "warning"
+      ? "text-amber-300"
+      : "text-white";
   return (
-    <Card>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 break-words text-xl font-bold text-slate-900 sm:text-2xl">{value}</p>
-      {sub ? <p className="mt-1 text-xs text-slate-500">{sub}</p> : null}
+    <Card className="relative overflow-hidden">
+      <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-blue-500/10 blur-xl" />
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-200/70">{label}</p>
+      <p className={`mt-2 break-words text-xl font-bold tracking-tight sm:text-2xl ${toneClass}`}>{value}</p>
+      {sub ? <p className="mt-1 text-xs text-slate-400">{sub}</p> : null}
     </Card>
   );
 }
 
 export function EmptySupabase() {
   return (
-    <Card className="border-2 border-dashed border-vektora-500/40 bg-blue-50">
-      <h2 className="text-lg font-bold">Hubungkan Supabase dulu</h2>
-      <p className="mt-2 text-sm leading-relaxed text-slate-600">
-        App ini belum terhubung ke database. Buat project di Supabase, jalankan{" "}
-        <code>supabase/schema.sql</code> lalu <code>supabase/seed.sql</code> di SQL Editor, lalu isi{" "}
-        <code>.env.local</code> dari <code>.env.example</code> dan deploy ulang di Vercel. Tidak ada data
-        palsu yang ditampilkan di sini — begitu Supabase terhubung, angka November 2026 WhereIsIt akan
-        muncul dari seed.
-      </p>
+    <Card className="border-dashed border-blue-400/40 bg-blue-950/40">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-500/20 text-blue-300 ring-1 ring-white/15">
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <ellipse cx="12" cy="5" rx="9" ry="3" />
+            <path d="M3 5V19A9 3 0 0 0 21 19V5" />
+            <path d="M3 12A9 3 0 0 0 21 12" />
+          </svg>
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg font-bold text-white">Hubungkan Supabase dulu</h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-blue-100/80">
+            App ini belum terhubung ke database. Buat project di Supabase, jalankan{" "}
+            <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-blue-200">supabase/schema.sql</code> lalu{" "}
+            <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-blue-200">supabase/seed.sql</code> di SQL
+            Editor, lalu isi <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-blue-200">.env.local</code>{" "}
+            dari <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-blue-200">.env.example</code> dan
+            deploy ulang di Vercel. Begitu Supabase terhubung, angka keuangan WhereIsIt &amp; Moonimo akan langsung
+            tampil.
+          </p>
+        </div>
+      </div>
     </Card>
   );
 }
@@ -42,12 +78,12 @@ export function BrandSelect({
   onChange: (v: string) => void;
 }) {
   return (
-    <label className="flex items-center gap-2 text-sm">
-      <span className="font-medium text-slate-600">Brand</span>
+    <label className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-3 py-1.5 text-xs backdrop-blur-md">
+      <span className="font-semibold uppercase tracking-wider text-blue-200/80">Brand</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium"
+        className="rounded-xl border-0 bg-transparent py-0.5 pr-1 text-sm font-semibold text-white focus:ring-0"
       >
         <option value="all">Semua brand</option>
         {brands.map((b) => (
@@ -66,10 +102,10 @@ export function Money({ n, className = "" }: { n: number; className?: string }) 
 
 export function ReadOnlyNotice({ role }: { role?: string | null }) {
   return (
-    <Card className="border-blue-200 bg-blue-50">
-      <p className="text-sm text-slate-700">
-        <b>Mode baca saja.</b> Peran kamu{role ? ` (${role})` : ""} hanya boleh melihat data — tombol
-        tambah / ubah / hapus disembunyikan. Minta admin bila ada yang perlu diubah.
+    <Card className="border-blue-400/25 bg-blue-950/40">
+      <p className="text-sm text-blue-100/90">
+        <b className="text-white">Mode baca saja.</b> Peran kamu{role ? ` (${role})` : ""} hanya boleh melihat data —
+        tombol tambah / ubah / hapus disembunyikan. Minta admin bila ada yang perlu diubah.
       </p>
     </Card>
   );
@@ -77,11 +113,12 @@ export function ReadOnlyNotice({ role }: { role?: string | null }) {
 
 export function AccessDenied({ text }: { text?: string }) {
   return (
-    <Card className="border-rose-200 bg-rose-50">
-      <h2 className="text-lg font-bold">Akses ditolak</h2>
-      <p className="mt-2 text-sm text-slate-600">
+    <Card className="border-rose-400/30 bg-rose-950/40">
+      <h2 className="text-lg font-bold text-rose-200">Akses ditolak</h2>
+      <p className="mt-2 text-sm text-rose-100/80">
         {text ?? "Peran kamu tidak boleh membuka halaman ini. Hubungi admin (Matias) bila kamu merasa ini salah."}
       </p>
     </Card>
   );
 }
+

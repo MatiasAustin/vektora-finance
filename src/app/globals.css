@@ -4,10 +4,17 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  color-scheme: dark;
 }
 
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  background-color: #060b19;
+  background-image:
+    radial-gradient(ellipse 95% 55% at 50% -8%, rgba(47, 115, 255, 0.52) 0%, rgba(21, 68, 192, 0.24) 48%, rgba(6, 11, 25, 0) 80%),
+    linear-gradient(180deg, #0b1942 0%, #070e24 380px, #060b19 100%);
+  background-attachment: fixed;
+  color: #f8fafc;
+  @apply antialiased selection:bg-blue-500 selection:text-white;
   overflow-x: hidden;
 }
 
@@ -17,19 +24,98 @@ video {
   max-width: 100%;
 }
 
-/* Cetak slip gaji: hanya slip yang tercetak, sidebar/header disembunyikan. */
+/* Finora dark form controls */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  background-color: rgba(11, 20, 46, 0.85);
+  border-color: rgba(148, 163, 184, 0.18);
+  color: #f8fafc;
+  transition: all 0.18s ease;
+}
+
+input:not([type="checkbox"]):not([type="radio"])::placeholder,
+textarea::placeholder {
+  color: rgba(148, 163, 184, 0.6);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: rgba(74, 136, 255, 0.75);
+  box-shadow: 0 0 0 3px rgba(47, 115, 255, 0.2);
+}
+
+select option {
+  background-color: #0b142e;
+  color: #f8fafc;
+}
+
+/* Finora glossy card surface (seperti kartu VISA/Mastercard di referensi) */
+.finora-glossy-card {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 88% 20%, rgba(165, 205, 255, 0.45) 0%, rgba(77, 136, 255, 0.18) 38%, transparent 70%),
+    linear-gradient(135deg, rgba(68, 132, 255, 0.72) 0%, rgba(28, 76, 204, 0.62) 52%, rgba(15, 34, 94, 0.82) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  box-shadow:
+    0 16px 36px -10px rgba(7, 18, 56, 0.65),
+    inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(16px);
+}
+
+.finora-glossy-card-alt {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 82% 72%, rgba(147, 184, 255, 0.35) 0%, rgba(56, 98, 218, 0.22) 44%, transparent 72%),
+    linear-gradient(145deg, rgba(58, 96, 208, 0.65) 0%, rgba(27, 46, 118, 0.72) 55%, rgba(14, 24, 62, 0.88) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 16px 36px -10px rgba(5, 11, 34, 0.65),
+    inset 0 1px 1px rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(16px);
+}
+
+.finora-surface {
+  background: linear-gradient(180deg, rgba(16, 27, 60, 0.84) 0%, rgba(10, 18, 41, 0.92) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 16px 40px -12px rgba(2, 6, 20, 0.75);
+  backdrop-filter: blur(16px);
+}
+
+/* Custom scrollbar halus */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Cetak slip gaji: hanya slip yang tercetak dengan warna hitam-putih bersih di kertas. */
 @media print {
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
   body * {
     visibility: hidden;
   }
   .payslip-print,
   .payslip-print * {
     visibility: visible;
+    color: #0f172a !important;
   }
   .payslip-print {
     position: absolute;
     inset: 0;
     width: 100%;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
     box-shadow: none !important;
   }
 }
+

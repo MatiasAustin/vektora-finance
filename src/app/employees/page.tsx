@@ -197,11 +197,11 @@ export default function EmployeesPage() {
   const mgmtEmployees = filtered.filter((e) => e.is_management);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">Karyawan &amp; Struktur Gaji</h2>
-          <p className="text-xs text-blue-200/75">
+          <h2 className="text-base font-bold text-white sm:text-lg">Karyawan &amp; Struktur Gaji</h2>
+          <p className="text-[11px] text-blue-200/75">
             Pemisahan jelas antara Staf Operasional (Gaji Tetap OPEX) vs Jajaran Management (Dibayar dari % Management Fee).
           </p>
         </div>
@@ -209,12 +209,12 @@ export default function EmployeesPage() {
       </div>
 
       {/* Hero OPEX */}
-      <div className="finora-glossy-card rounded-3xl p-6 text-white">
-        <p className="text-xs font-semibold uppercase tracking-wider text-blue-100/80">
+      <div className="finora-glossy-card rounded-3xl p-5 text-white">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-100/80">
           Total Gaji Tetap / Bulan (OPEX Operasional)
         </p>
-        <p className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">{formatIDR(opex)}</p>
-        <p className="mt-2 text-xs text-blue-100/85">
+        <p className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{formatIDR(opex)}</p>
+        <p className="mt-1.5 text-[11px] text-blue-100/85">
           Hanya menghitung staf operasional aktif ({opexEmployees.filter((x) => x.is_active).length} orang). Jajaran
           manajemen dibayar dari persentase <b>Management Fee</b> di halaman Pembagian Fee, bukan dari beban tetap OPEX.
         </p>
@@ -223,7 +223,7 @@ export default function EmployeesPage() {
       {editable ? (
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-base font-bold text-white">Daftarkan Anggota Tim / Karyawan</h3>
+            <h3 className="text-sm font-bold text-white">Daftarkan Anggota Tim / Karyawan</h3>
             <div className="inline-flex rounded-2xl border border-white/10 bg-black/30 p-1 text-xs font-semibold">
               <button
                 type="button"
@@ -370,10 +370,10 @@ export default function EmployeesPage() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-base font-bold text-white">
+            <h3 className="text-sm font-bold text-white">
               Karyawan Operasional (OPEX) · {opexEmployees.length} orang
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-[11px] text-slate-400">
               Memiliki gaji pokok bulanan tetap dan dibuatkan slip gaji bulanan di halaman Slip Gaji.
             </p>
           </div>
@@ -385,11 +385,11 @@ export default function EmployeesPage() {
           </Link>
         </div>
 
-        <ul className="mt-4 space-y-2.5">
+        <ul className="mt-3 space-y-2">
           {opexEmployees.map((e) => (
             <li
               key={e.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-2.5 text-xs"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -400,7 +400,7 @@ export default function EmployeesPage() {
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-0.5 text-[11px] text-slate-400">
                   {e.brands?.name} · {e.role ?? "—"} · Tim: {e.team ?? "—"} · Fixed Cost (OPEX)
                 </p>
               </div>
@@ -431,7 +431,7 @@ export default function EmployeesPage() {
                   </div>
                 ) : (
                   <>
-                    <b className="shrink-0 whitespace-nowrap text-base text-white">
+                    <b className="shrink-0 whitespace-nowrap text-xs sm:text-sm text-white">
                       {formatIDR(e.monthly_salary)}/bln
                     </b>
                     {editable && (
@@ -468,7 +468,7 @@ export default function EmployeesPage() {
             </li>
           ))}
           {opexEmployees.length === 0 && (
-            <li className="rounded-2xl border border-white/5 bg-white/[0.02] py-8 text-center text-sm text-slate-400">
+            <li className="rounded-2xl border border-white/5 bg-white/[0.02] py-6 text-center text-xs text-slate-400">
               Belum ada karyawan operasional terdaftar.
             </li>
           )}
@@ -479,10 +479,10 @@ export default function EmployeesPage() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-base font-bold text-white">
+            <h3 className="text-sm font-bold text-white">
               Jajaran Management (Dibayar dari Management Fee) · {mgmtEmployees.length} orang
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-[11px] text-slate-400">
               Penghasilan berasal dari persentase Management Fee bulanan, bukan beban tetap OPEX. Slip dicetak di
               halaman Pembagian Fee.
             </p>

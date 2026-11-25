@@ -93,18 +93,18 @@ export default function LiabilitiesPage() {
   if (!canViewOperations(role)) return <AccessDenied />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">Hutang &amp; Pinjaman</h2>
-          <p className="text-xs text-blue-200/75">
+          <h2 className="text-base font-bold text-white sm:text-lg">Hutang &amp; Pinjaman</h2>
+          <p className="text-[11px] text-blue-200/75">
             Pemisahan tegas antara hutang perusahaan vs tanggung jawab investor, lengkap dengan pintasan bayar cicilan.
           </p>
         </div>
         <BrandSelect brands={brands} value={brandId} onChange={setBrandId} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3.5 md:grid-cols-2">
         <StatCard
           label="Hutang Perusahaan (Sisa)"
           value={formatIDR(companyDebt)}
@@ -119,7 +119,7 @@ export default function LiabilitiesPage() {
       </div>
 
       <Card>
-        <h3 className="text-base font-bold text-white">Catat Hutang / Pinjaman Baru</h3>
+        <h3 className="text-sm font-bold text-white">Catat Hutang / Pinjaman Baru</h3>
         {editable ? (
           <form onSubmit={add} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <label className="block text-xs text-blue-200/80">
@@ -251,8 +251,8 @@ export default function LiabilitiesPage() {
       </Card>
 
       <Card>
-        <h3 className="text-base font-bold text-white">Daftar Hutang &amp; Progres Pelunasan ({filtered.length})</h3>
-        <ul className="mt-4 space-y-3">
+        <h3 className="text-sm font-bold text-white">Daftar Hutang &amp; Progres Pelunasan ({filtered.length})</h3>
+        <ul className="mt-3 space-y-2.5">
           {filtered.map((l) => {
             const paid = Math.max(0, l.amount - l.remaining_amount);
             const pct = l.amount > 0 ? Math.min(100, Math.round((paid / l.amount) * 100)) : 100;
@@ -260,7 +260,7 @@ export default function LiabilitiesPage() {
             return (
               <li
                 key={l.id}
-                className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 text-sm"
+                className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3.5 text-xs"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -269,7 +269,7 @@ export default function LiabilitiesPage() {
                         {l.creditor} — {l.brands?.name ?? "PT Vektora"}
                       </p>
                       <span
-                        className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1 text-[11px] font-semibold leading-none ${
+                        className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold leading-none ${
                           isLunas
                             ? "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/30"
                             : l.paid_by === "investor"
@@ -280,7 +280,7 @@ export default function LiabilitiesPage() {
                         {isLunas ? "Lunas ✓" : l.paid_by === "investor" ? "Tanggungan Investor" : "Hutang Aktif"}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-[11px] text-slate-400">
                       Total awal: {formatIDR(l.amount)} · Terbayar: <b className="text-emerald-300">{formatIDR(paid)}</b> ({pct}%) · Jatuh tempo:{" "}
                       {formatDateID(l.due_date)} · Cicilan:{" "}
                       {l.monthly_installment ? `${formatIDR(l.monthly_installment)}/bln` : "—"} ({l.months ?? "—"} bln)
@@ -290,8 +290,8 @@ export default function LiabilitiesPage() {
 
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="text-right">
-                      <p className="text-[11px] text-slate-400">Sisa Hutang</p>
-                      <p className="text-lg font-black text-white">{formatIDR(l.remaining_amount)}</p>
+                      <p className="text-[10px] text-slate-400">Sisa Hutang</p>
+                      <p className="text-sm font-black text-white sm:text-base">{formatIDR(l.remaining_amount)}</p>
                     </div>
                     {editable && !isLunas && (
                       <Link

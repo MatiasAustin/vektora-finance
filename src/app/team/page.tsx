@@ -111,7 +111,7 @@ export default function TeamPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold text-white">Tim &amp; Pengguna (Akses Login)</h2>
+        <h2 className="text-base font-bold text-white sm:text-lg">Tim &amp; Pengguna (Akses Login)</h2>
         <p className="text-xs text-blue-200/75">
           Kelola peran pengguna (Admin, Management, Komisaris, Investor, Karyawan) dan hak akses brand.
         </p>
@@ -121,7 +121,7 @@ export default function TeamPage() {
 
       {canManageTeam(role) && (
         <Card>
-          <h3 className="text-base font-bold text-white">Tambah Profil Pengguna Baru</h3>
+          <h3 className="text-sm font-bold text-white">Tambah Profil Pengguna Baru</h3>
           <p className="mt-1 text-xs leading-relaxed text-slate-400">
             1) Buat akun terlebih dahulu di <b>Supabase Dashboard → Authentication → Add user</b> dengan email{" "}
             <code className="rounded bg-white/10 px-1.5 py-0.5 text-blue-200">username@vektora.id</code> dan centang{" "}
@@ -226,14 +226,14 @@ export default function TeamPage() {
       )}
 
       <Card>
-        <h3 className="text-base font-bold text-white">Daftar Akun Terdaftar ({rows.length})</h3>
-        <ul className="mt-4 space-y-2.5">
+        <h3 className="text-sm font-bold text-white">Daftar Akun Terdaftar ({rows.length})</h3>
+        <ul className="mt-3 space-y-2">
           {rows.map((p) => {
             const linkedEmp = employeeName(p.employee_id);
             return (
               <li
                 key={p.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-2.5 text-xs"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2.5">

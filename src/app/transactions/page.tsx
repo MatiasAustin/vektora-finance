@@ -548,18 +548,18 @@ function TransactionsContent() {
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">Transaksi &amp; Arus Kas</h2>
-          <p className="text-xs text-blue-200/75">
+          <h2 className="text-base font-bold text-white sm:text-lg">Transaksi &amp; Arus Kas</h2>
+          <p className="text-[11px] text-blue-200/75">
             Pemasukan, pengeluaran operasional, reimburse, dan cicilan hutang.
           </p>
         </div>
         <BrandSelect brands={brands} value={brandId} onChange={setBrandId} />
       </div>
 
-      <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Income" value={formatIDR(sum.income)} tone="positive" />
         <StatCard label="Pengeluaran Terhitung" value={formatIDR(sum.expense)} tone="negative" />
         <StatCard label="Belum Reimburse" value={formatIDR(sum.belumReimburse)} tone="warning" />
@@ -568,7 +568,7 @@ function TransactionsContent() {
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-base font-bold text-white">Catat Transaksi Baru</h3>
+          <h3 className="text-sm font-bold text-white">Catat Transaksi Baru</h3>
           {editable && (
             <div className="inline-flex rounded-2xl border border-white/10 bg-black/30 p-1 text-xs font-semibold">
               <button
@@ -1007,7 +1007,7 @@ function TransactionsContent() {
       {/* DAFTAR TRANSAKSI */}
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-base font-bold text-white">Daftar Transaksi ({filtered.length})</h3>
+          <h3 className="text-sm font-bold text-white">Daftar Transaksi ({filtered.length})</h3>
           <div className="flex flex-wrap gap-2">
             <select
               value={kind}
@@ -1030,7 +1030,7 @@ function TransactionsContent() {
           </div>
         </div>
 
-        <ul className="mt-4 space-y-2.5">
+        <ul className="mt-3.5 space-y-2">
           {filtered.map((t) => {
             const isIncome = t.kind === "income";
             const isDebt = Boolean(t.liability_id);
@@ -1038,11 +1038,11 @@ function TransactionsContent() {
             return (
               <li
                 key={t.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm transition hover:bg-white/[0.06]"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-2.5 text-xs transition hover:bg-white/[0.06]"
               >
-                <div className="flex min-w-0 flex-1 items-start gap-3">
+                <div className="flex min-w-0 flex-1 items-start gap-2.5">
                   <div
-                    className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-black ${
+                    className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[10px] font-black ${
                       isIncome
                         ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/30"
                         : isDebt
@@ -1055,8 +1055,8 @@ function TransactionsContent() {
                     {isIncome ? "IN" : isDebt ? "CIC" : "OUT"}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="break-words font-semibold text-white">{t.description}</p>
-                    <p className="mt-0.5 text-xs text-slate-400">
+                    <p className="break-words text-xs font-semibold text-white">{t.description}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">
                       {formatDateID(t.txn_date)} · {t.brands?.name} · {t.category ?? "—"} · {t.payment_method ?? "—"}
                       {t.ref ? ` · Ref: ${t.ref}` : ""}
                       {t.liability_id
@@ -1068,7 +1068,7 @@ function TransactionsContent() {
 
                 <div className="flex flex-wrap items-center gap-2">
                   <span
-                    className={`shrink-0 whitespace-nowrap text-base font-bold ${
+                    className={`shrink-0 whitespace-nowrap text-xs font-bold sm:text-sm ${
                       isIncome ? "text-emerald-300" : isPending ? "text-amber-300" : "text-white"
                     }`}
                   >

@@ -60,16 +60,16 @@ export default function BrandsPage() {
   if (!canViewOperations(role)) return <AccessDenied />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold text-white">Brand &amp; Kartu Unit Bisnis — PT Vektora</h2>
-        <p className="text-xs text-blue-200/75">
+        <h2 className="text-base font-bold text-white sm:text-lg">Brand &amp; Kartu Unit Bisnis — PT Vektora</h2>
+        <p className="text-[11px] text-blue-200/75">
           Setiap brand memiliki kartu pembukuan mandiri untuk transaksi, aset, hutang, karyawan, dan rasio pembagian fee.
         </p>
       </div>
 
       {/* Kartu Brand Bergaya Finora Glossy Cards */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3.5 md:grid-cols-2">
         {brands.map((b, idx) => {
           const codeTail = b.slug.slice(0, 4).toUpperCase().padEnd(4, "0");
           return (
@@ -77,18 +77,18 @@ export default function BrandsPage() {
               key={b.id}
               className={`${
                 idx % 2 === 0 ? "finora-glossy-card" : "finora-glossy-card-alt"
-              } relative flex flex-col justify-between rounded-3xl p-6 text-white`}
+              } relative flex flex-col justify-between rounded-3xl p-5 text-white`}
             >
               <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/15 blur-2xl" />
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <span className="text-xs font-semibold uppercase tracking-widest text-blue-100/80">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-100/80">
                     PT Vektora Brand Card
                   </span>
-                  <h3 className="mt-1 truncate text-2xl font-black tracking-tight text-white">{b.name}</h3>
+                  <h3 className="mt-0.5 truncate text-lg font-black tracking-tight text-white">{b.name}</h3>
                 </div>
                 <span
-                  className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/15 px-3.5 py-1.5 text-xs font-bold leading-none ${
+                  className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/15 px-3 py-1 text-[10px] font-bold leading-none ${
                     b.is_active ? "bg-white/20 text-white" : "bg-black/40 text-slate-300"
                   }`}
                 >
@@ -96,11 +96,11 @@ export default function BrandsPage() {
                 </span>
               </div>
 
-              <div className="my-5">
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-100/80">
+              <div className="my-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-100/80">
                   Segmen: {b.segment ?? "Multi-Segmen"}
                 </p>
-                <p className="mt-1.5 text-sm leading-relaxed text-blue-50/90">
+                <p className="mt-1 text-xs leading-relaxed text-blue-50/90">
                   {b.description ?? "Unit bisnis di bawah manajemen PT Vektora Teknologi Nusantara."}
                 </p>
               </div>
@@ -124,7 +124,7 @@ export default function BrandsPage() {
       </div>
 
       <Card>
-        <h3 className="text-base font-bold text-white">Tambah Brand Baru (Add +)</h3>
+        <h3 className="text-sm font-bold text-white">Tambah Brand Baru (Add +)</h3>
         {editable ? (
           <form onSubmit={add} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block text-xs text-blue-200/80">

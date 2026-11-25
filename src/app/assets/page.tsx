@@ -94,11 +94,11 @@ export default function AssetsPage() {
   if (!canViewOperations(role)) return <AccessDenied />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">Aset &amp; Investasi</h2>
-          <p className="text-xs text-blue-200/75">
+          <h2 className="text-base font-bold text-white sm:text-lg">Aset &amp; Investasi</h2>
+          <p className="text-[11px] text-blue-200/75">
             Mesin, printer 3D, filamen modal, dan inventaris yang dibeli dari investasi (bukan beban OPEX).
           </p>
         </div>
@@ -106,17 +106,17 @@ export default function AssetsPage() {
       </div>
 
       {/* Kartu Hero Aset Bergaya Glossy Finora */}
-      <div className="finora-glossy-card rounded-3xl p-6 text-white">
-        <p className="text-xs font-semibold uppercase tracking-wider text-blue-100/80">Total Nilai Aset &amp; Inventaris</p>
-        <p className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">{formatIDR(total)}</p>
-        <p className="mt-2 text-xs text-blue-100/85">
+      <div className="finora-glossy-card rounded-3xl p-5 text-white">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-100/80">Total Nilai Aset &amp; Inventaris</p>
+        <p className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{formatIDR(total)}</p>
+        <p className="mt-1.5 text-[11px] text-blue-100/85">
           {filtered.length} item terdaftar · Pembelian aset dari modal/pinjaman dicatat di sini agar tidak mengurangi laba operasional.
         </p>
       </div>
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-base font-bold text-white">Tambah Aset Baru</h3>
+          <h3 className="text-sm font-bold text-white">Tambah Aset Baru</h3>
           {editable && previewTotal > 0 && (
             <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-blue-500/20 px-3.5 py-1.5 text-xs font-bold leading-none text-blue-200 ring-1 ring-blue-400/30">
               Pratinjau Total: {formatIDR(previewTotal)}
@@ -230,23 +230,23 @@ export default function AssetsPage() {
       </Card>
 
       <Card>
-        <h3 className="text-base font-bold text-white">Daftar Aset Terdaftar ({filtered.length})</h3>
-        <ul className="mt-4 space-y-2.5">
+        <h3 className="text-sm font-bold text-white">Daftar Aset Terdaftar ({filtered.length})</h3>
+        <ul className="mt-3 space-y-2">
           {filtered.map((a) => (
             <li
               key={a.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3.5 py-2.5 text-xs"
             >
               <div className="min-w-0 flex-1">
                 <p className="break-words font-semibold text-white">{a.name}</p>
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-0.5 text-[11px] text-slate-400">
                   {a.brands?.name} · {a.category ?? "—"} · Qty {a.qty} × {formatIDR(a.unit_price)} · Beli:{" "}
                   {formatDateID(a.purchased_at)}
                   {a.notes ? ` · ${a.notes}` : ""}
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <b className="shrink-0 whitespace-nowrap text-base text-white">{formatIDR(a.total_price)}</b>
+                <b className="shrink-0 whitespace-nowrap text-xs sm:text-sm text-white">{formatIDR(a.total_price)}</b>
                 {canDelete && (
                   <button
                     onClick={() => removeAsset(a)}

@@ -424,11 +424,11 @@ export default function FeeSplitPage() {
   if (!canViewOperations(role)) return <AccessDenied />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">Pembagian Fee &amp; Dividen</h2>
-          <p className="text-xs text-blue-200/75">
+          <h2 className="text-base font-bold text-white sm:text-lg">Pembagian Fee &amp; Dividen</h2>
+          <p className="text-[11px] text-blue-200/75">
             Distribusi Laba Bersih per Brand ke Dividen Pemodal, Management Fee, dan Laba Ditahan Perusahaan.
           </p>
         </div>
@@ -441,23 +441,23 @@ export default function FeeSplitPage() {
           Laba bersih dihitung <b className="text-white">terpisah per brand</b> (Income − Pengeluaran Lunas; Belum
           reimburse &amp; cicilan hutang tidak mengurangi laba). <b className="text-amber-200">Bila laba ≤ Rp0, distribusi otomatis Rp0.</b>
         </p>
-        <ul className="mt-3 space-y-2 text-sm">
+        <ul className="mt-3 space-y-2 text-xs">
           {visibleSplits.map((s) => {
             const bs = brandSum(s.brand_id);
             return (
               <li
                 key={s.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-2"
               >
                 <span className="font-bold text-white">{s.brands?.name}</span>
                 <span className="text-xs text-slate-300">
-                  Laba Bersih: <b className="text-sm text-emerald-300">{formatIDR(bs.net)}</b> (Income{" "}
+                  Laba Bersih: <b className="text-emerald-300">{formatIDR(bs.net)}</b> (Income{" "}
                   {formatIDR(bs.income)} − Pengeluaran {formatIDR(bs.expense)})
                 </span>
               </li>
             );
           })}
-          <li className="flex flex-wrap justify-between gap-2 border-t border-white/10 pt-2 text-sm">
+          <li className="flex flex-wrap justify-between gap-2 border-t border-white/10 pt-2 text-xs">
             <span className="text-slate-300">Total Laba Bersih Brand yang Ditampilkan</span>
             <b className="text-white">{formatIDR(totalNet)}</b>
           </li>
@@ -487,14 +487,14 @@ export default function FeeSplitPage() {
           <Card key={s.id}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="text-lg font-bold text-white">
+                <h3 className="text-sm font-bold text-white sm:text-base">
                   {s.brands?.name} — Rasio {s.dividend_pct}% / {s.management_fee_pct}% / {s.retained_pct}%
                 </h3>
                 <p className="text-xs text-blue-200/80">
                   Laba Bersih {s.brands?.name}: <b className="text-white">{formatIDR(bs.net)}</b>
                 </p>
               </div>
-              <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-blue-500/20 px-3.5 py-1.5 text-xs font-semibold leading-none text-blue-200 ring-1 ring-blue-400/30">
+              <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-blue-500/20 px-3 py-1 text-[11px] font-semibold leading-none text-blue-200 ring-1 ring-blue-400/30">
                 Dividen / Mgmt Fee / Ditahan
               </span>
             </div>
@@ -509,7 +509,7 @@ export default function FeeSplitPage() {
             {canEditFeeSplit(role) ? (
               <form
                 onSubmit={(e) => savePct(e, s)}
-                className="mt-4 flex flex-wrap items-end gap-3 rounded-2xl border border-white/10 bg-black/20 p-3.5"
+                className="mt-3.5 flex flex-wrap items-end gap-3 rounded-2xl border border-white/10 bg-black/20 p-3"
               >
                 <label className="text-xs text-blue-200/80">
                   Dividen (%)
@@ -523,7 +523,7 @@ export default function FeeSplitPage() {
                         [s.id]: { ...pd, dividend_pct: Number(e.target.value) },
                       }))
                     }
-                    className="mt-1 block w-24 rounded-xl border px-3 py-1.5 text-sm font-bold"
+                    className="mt-1 block w-24 rounded-xl border px-3 py-1.5 text-xs font-bold"
                   />
                 </label>
                 <label className="text-xs text-blue-200/80">
@@ -538,7 +538,7 @@ export default function FeeSplitPage() {
                         [s.id]: { ...pd, management_fee_pct: Number(e.target.value) },
                       }))
                     }
-                    className="mt-1 block w-24 rounded-xl border px-3 py-1.5 text-sm font-bold"
+                    className="mt-1 block w-24 rounded-xl border px-3 py-1.5 text-xs font-bold"
                   />
                 </label>
                 <label className="text-xs text-blue-200/80">
@@ -553,7 +553,7 @@ export default function FeeSplitPage() {
                         [s.id]: { ...pd, retained_pct: Number(e.target.value) },
                       }))
                     }
-                    className="mt-1 block w-24 rounded-xl border px-3 py-1.5 text-sm font-bold"
+                    className="mt-1 block w-24 rounded-xl border px-3 py-1.5 text-xs font-bold"
                   />
                 </label>
                 <div className="flex items-center gap-3">
@@ -569,7 +569,7 @@ export default function FeeSplitPage() {
                   <button
                     type="submit"
                     disabled={sumPct !== 100}
-                    className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow shadow-blue-600/30 transition hover:bg-blue-500 disabled:opacity-40"
+                    className="rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-bold text-white shadow shadow-blue-600/30 transition hover:bg-blue-500 disabled:opacity-40"
                   >
                     Simpan Rasio
                   </button>
@@ -582,14 +582,14 @@ export default function FeeSplitPage() {
             )}
 
             {/* 3 Kolom Distribusi: Dividen, Management Fee, Ditahan */}
-            <div className="mt-4 grid grid-cols-1 gap-3.5 lg:grid-cols-3">
+            <div className="mt-3.5 grid grid-cols-1 gap-3 lg:grid-cols-3">
               {/* Dividen */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/75">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-200/75">
                   Pool Dividen ({s.dividend_pct}%)
                 </p>
-                <p className="mt-1 text-2xl font-black text-white">{formatIDR(fee.dividend)}</p>
-                <ul className="mt-3 space-y-2">
+                <p className="mt-1 text-lg font-black text-white">{formatIDR(fee.dividend)}</p>
+                <ul className="mt-2.5 space-y-1.5">
                   {fee.dividendBreakdown.map((r) => (
                     <li
                       key={r.name}
@@ -617,12 +617,12 @@ export default function FeeSplitPage() {
               </div>
 
               {/* Management Fee */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/75">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-200/75">
                   Pool Management Fee ({s.management_fee_pct}%)
                 </p>
-                <p className="mt-1 text-2xl font-black text-white">{formatIDR(fee.managementFee)}</p>
-                <ul className="mt-3 space-y-2">
+                <p className="mt-1 text-lg font-black text-white">{formatIDR(fee.managementFee)}</p>
+                <ul className="mt-2.5 space-y-1.5">
                   {fee.feeBreakdown.map((r) => (
                     <li
                       key={r.name}
@@ -661,11 +661,11 @@ export default function FeeSplitPage() {
               </div>
 
               {/* Ditahan Perusahaan */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-200/75">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-200/75">
                   Laba Ditahan Perusahaan ({s.retained_pct}%)
                 </p>
-                <p className="mt-1 text-2xl font-black text-white">{formatIDR(fee.retained)}</p>
+                <p className="mt-1 text-lg font-black text-white">{formatIDR(fee.retained)}</p>
                 <p className="mt-2 text-xs leading-relaxed text-slate-400">
                   Cadangan kas &amp; modal putar kembali untuk ekspansi brand {s.brands?.name} (tidak dibagikan ke
                   individu).

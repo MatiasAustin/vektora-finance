@@ -198,11 +198,11 @@ export default function PayslipsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">{isEmployee ? "Slip Gaji Saya" : "Slip Gaji (Payroll OPEX)"}</h2>
-          <p className="text-xs text-blue-200/75">
+          <h2 className="text-base font-bold text-white sm:text-lg">{isEmployee ? "Slip Gaji Saya" : "Slip Gaji (Payroll OPEX)"}</h2>
+          <p className="text-[11px] text-blue-200/75">
             {isEmployee
               ? "Daftar slip gaji bulanan milikmu yang dapat dicetak atau diunduh."
               : "Generate slip gaji bulanan staf operasional, tambah tunjangan/potongan, dan bagikan via WhatsApp."}
@@ -225,7 +225,7 @@ export default function PayslipsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard
           label="Total Gaji Bersih"
           value={formatIDR(totals.totalNet)}
@@ -249,7 +249,7 @@ export default function PayslipsPage() {
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h3 className="text-base font-bold text-white">Generate Slip Gaji Periode Baru</h3>
+              <h3 className="text-sm font-bold text-white">Generate Slip Gaji Periode Baru</h3>
               <p className="text-xs text-slate-400">
                 Membuat slip dari gaji pokok di halaman Karyawan. Untuk jajaran Direksi/Komisaris yang berbasis % laba,
                 cetak slipnya di{" "}
@@ -325,8 +325,8 @@ export default function PayslipsPage() {
       <div className="grid gap-4 lg:grid-cols-12">
         {/* Daftar Slip (Satu kartu interaktif per baris, tanpa dua tombol kembar) */}
         <Card className="lg:col-span-5">
-          <h3 className="text-base font-bold text-white">Daftar Slip ({visibleSlips.length})</h3>
-          <p className="text-xs text-slate-400">Klik baris untuk membuka rincian &amp; cetak slip.</p>
+          <h3 className="text-sm font-bold text-white">Daftar Slip ({visibleSlips.length})</h3>
+          <p className="text-[11px] text-slate-400">Klik baris untuk membuka rincian &amp; cetak slip.</p>
           <ul className="mt-3 space-y-2">
             {visibleSlips.map((s) => {
               const isSelected = selected?.id === s.id;
@@ -336,21 +336,21 @@ export default function PayslipsPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedId(s.id)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border p-3.5 text-left transition ${
+                    className={`flex w-full items-center justify-between gap-3 rounded-2xl border p-3 text-left transition ${
                       isSelected
                         ? "border-blue-400/60 bg-blue-600/25 shadow-lg shadow-blue-950/50"
                         : "border-white/[0.07] bg-white/[0.03] hover:bg-white/[0.07]"
                     }`}
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-white">{slipName(s)}</p>
-                      <p className="mt-0.5 text-xs text-slate-400">
+                      <p className="truncate text-xs font-bold text-white">{slipName(s)}</p>
+                      <p className="mt-0.5 text-[11px] text-slate-400">
                         Periode {s.payroll_periods?.period} · {s.employees?.role ?? "Staf"}
                         {s.sent_at ? ` · Terkirim (${s.sent_via})` : ""}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-sm font-black text-white">{formatIDR(s.net_pay)}</p>
+                      <p className="text-xs font-black text-white sm:text-sm">{formatIDR(s.net_pay)}</p>
                       <span
                         className={`mt-1 inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold leading-none ${
                           isPaid
@@ -366,7 +366,7 @@ export default function PayslipsPage() {
               );
             })}
             {visibleSlips.length === 0 && (
-              <li className="rounded-2xl border border-white/5 bg-white/[0.02] py-8 text-center text-sm text-slate-400">
+              <li className="rounded-2xl border border-white/5 bg-white/[0.02] py-6 text-center text-xs text-slate-400">
                 Belum ada slip gaji.{" "}
                 {isEmployee ? "Slipmu akan muncul setelah admin men-generate periode ini." : "Generate periode di atas."}
               </li>
@@ -378,19 +378,19 @@ export default function PayslipsPage() {
         <div className="lg:col-span-7">
           {selected ? (
             <Card className="payslip-print">
-              <div className="flex flex-wrap items-start justify-between gap-2 border-b border-white/10 pb-4">
+              <div className="flex flex-wrap items-start justify-between gap-2 border-b border-white/10 pb-3.5">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-300">
                     PT Vektora Teknologi Nusantara
                   </p>
-                  <h3 className="mt-0.5 text-xl font-black text-white">SLIP GAJI KARYAWAN</h3>
-                  <p className="text-xs text-slate-300">
+                  <h3 className="mt-0.5 text-base font-black text-white sm:text-lg">SLIP GAJI KARYAWAN</h3>
+                  <p className="text-[11px] text-slate-300">
                     Periode: <b>{selected.payroll_periods?.period}</b> · Penerima: <b>{slipName(selected)}</b> (
                     {selected.employees?.role ?? "—"})
                   </p>
                 </div>
                 <span
-                  className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold leading-none ${
+                  className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold leading-none ${
                     selected.status === "sudah_dibayar"
                       ? "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/30"
                       : "bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/30"
@@ -400,7 +400,7 @@ export default function PayslipsPage() {
                 </span>
               </div>
 
-              <div className="mt-4 space-y-2 text-sm">
+              <div className="mt-3.5 space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-slate-300">Gaji Pokok</span>
                   <b className="text-white">{formatIDR(selected.base_salary)}</b>
@@ -454,9 +454,9 @@ export default function PayslipsPage() {
                   <b>{formatIDR(selected.total_deductions)}</b>
                 </div>
 
-                <div className="flex justify-between rounded-2xl border border-blue-400/30 bg-blue-500/15 p-3 text-base">
+                <div className="flex items-center justify-between rounded-2xl border border-blue-400/30 bg-blue-500/15 p-3 text-xs">
                   <span className="font-bold text-blue-100">Take Home Pay (Gaji Bersih)</span>
-                  <b className="text-lg font-black text-white">{formatIDR(selected.net_pay)}</b>
+                  <b className="text-sm font-black text-white sm:text-base">{formatIDR(selected.net_pay)}</b>
                 </div>
 
                 <p className="text-xs text-slate-400">

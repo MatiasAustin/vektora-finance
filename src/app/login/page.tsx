@@ -36,15 +36,15 @@ function LoginForm() {
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="finora-surface w-full max-w-md rounded-3xl p-6 text-white sm:p-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-400 to-blue-700 font-black text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-400 to-blue-700 text-sm font-black text-white">
               V
             </div>
             <div>
-              <h1 className="text-xl font-black">Vektora Finance</h1>
+              <h1 className="text-base font-black">Vektora Finance</h1>
               <p className="text-xs text-blue-200/75">PT Vektora Teknologi Nusantara</p>
             </div>
           </div>
-          <p className="mt-4 text-sm leading-relaxed text-blue-100/80">
+          <p className="mt-4 text-xs leading-relaxed text-blue-100/80">
             Supabase belum terhubung. Buat project di Supabase, jalankan{" "}
             <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs">supabase/schema.sql</code> lalu{" "}
             <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs">supabase/seed.sql</code>, isi{" "}
@@ -61,17 +61,17 @@ function LoginForm() {
       {/* Glow Finora background */}
       <div className="pointer-events-none absolute -top-32 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-blue-500/30 blur-3xl" />
 
-      <div className="finora-surface relative w-full max-w-md rounded-3xl p-6 text-white sm:p-8">
+      <div className="finora-surface relative w-full max-w-md rounded-3xl p-6 text-white sm:p-7">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-400 to-blue-700 text-lg font-black text-white shadow-lg shadow-blue-600/35 ring-1 ring-white/25">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-400 to-blue-700 text-base font-black text-white shadow-lg shadow-blue-600/35 ring-1 ring-white/25">
               V
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-blue-300">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-300">
                 PT Vektora Teknologi Nusantara
               </p>
-              <h1 className="text-2xl font-black tracking-tight text-white">Vektora Finance</h1>
+              <h1 className="text-lg font-black tracking-tight text-white sm:text-xl">Vektora Finance</h1>
             </div>
           </div>
         </div>

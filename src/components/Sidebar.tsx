@@ -145,7 +145,7 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
             key={item.href}
             href={item.href}
             onClick={onNavigate}
-            className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-all ${
+            className={`flex items-center gap-2.5 rounded-2xl px-3 py-2 text-xs font-medium transition-all ${
               active
                 ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-600/30 ring-1 ring-white/20"
                 : "text-blue-100/70 hover:bg-white/10 hover:text-white"
@@ -163,24 +163,24 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 export default function Sidebar() {
   const { role } = useAuth();
   return (
-    <aside className="hidden w-64 shrink-0 border-r border-white/10 bg-[#050a18]/90 p-5 text-white backdrop-blur-xl md:flex md:flex-col">
-      <div className="flex items-center gap-3 px-1">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-400 to-blue-700 font-black text-white shadow-lg shadow-blue-600/30 ring-1 ring-white/25">
+    <aside className="hidden w-60 shrink-0 border-r border-white/10 bg-[#050a18]/90 p-4 text-white backdrop-blur-xl md:flex md:flex-col">
+      <div className="flex items-center gap-2.5 px-1">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-400 to-blue-700 text-xs font-black text-white shadow-lg shadow-blue-600/30 ring-1 ring-white/25">
           V
         </div>
         <div>
-          <div className="text-lg font-black tracking-tight text-white">
+          <div className="text-base font-black tracking-tight text-white">
             Vektora<span className="text-blue-400">.</span>
           </div>
-          <p className="text-[11px] font-medium text-blue-200/70">Finora Edition · PT Vektora</p>
+          <p className="text-[10px] font-medium text-blue-200/70">Finora Edition · PT Vektora</p>
         </div>
       </div>
 
-      <nav className="mt-7 flex-1 space-y-1">
+      <nav className="mt-6 flex-1 space-y-1">
         <NavLinks />
       </nav>
 
-      <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-3.5 text-xs leading-relaxed text-blue-100/80">
+      <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-3 text-[11px] leading-relaxed text-blue-100/80">
         <p className="font-semibold text-white">Aturan Akuntansi</p>
         <p className="mt-1">
           Pengeluaran <b className="text-amber-300">Belum reimburse</b> &amp; <b className="text-blue-200">Cicilan hutang</b> tercatat rapi tapi tidak mengurangi laba operasional.

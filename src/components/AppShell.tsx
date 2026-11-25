@@ -38,27 +38,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Header Finora: Avatar + "Hello, <Nama>!" di kiri, tombol notifikasi / profil kaca bulat di kanan */}
         <header className="mx-auto max-w-6xl px-4 pt-5 sm:px-6 md:px-8 md:pt-7">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3.5">
+            <div className="flex min-w-0 items-center gap-3">
               <button
                 onClick={() => setAccountOpen((o) => !o)}
-                className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-300 via-blue-500 to-indigo-800 text-sm font-black text-white shadow-lg shadow-blue-950/60 ring-2 ring-white/30 transition hover:scale-105"
+                className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-300 via-blue-500 to-indigo-800 text-xs font-black text-white shadow-lg shadow-blue-950/60 ring-2 ring-white/30 transition hover:scale-105"
                 title="Profil & Akun"
               >
                 {initials || "VF"}
-                <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-[#0b1942]" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-[#0b1942]" />
               </button>
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <h1 className="truncate text-lg font-bold tracking-tight text-white sm:text-xl">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="truncate text-sm font-bold tracking-tight text-white sm:text-base">
                     Hello {firstName}!
                   </h1>
                   {role && (
-                    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold leading-none text-blue-100 backdrop-blur-md">
+                    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-semibold leading-none text-blue-100 backdrop-blur-md">
                       {ROLE_LABELS[role]}
                     </span>
                   )}
                 </div>
-                <p className="truncate text-xs text-blue-100/75">
+                <p className="truncate text-[11px] text-blue-100/75">
                   PT Vektora Teknologi Nusantara · WhereIsIt &amp; Moonimo
                 </p>
               </div>

@@ -143,7 +143,7 @@ export default function HistoryPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">Riwayat Perubahan (Audit Log)</h2>
+          <h2 className="text-base font-bold text-white sm:text-lg">Riwayat Perubahan (Audit Log)</h2>
           <p className="text-xs text-blue-200/75">
             Catatan otomatis setiap kali transaksi diubah atau dihapus beserta pelaku dan rincian perubahannya.
           </p>

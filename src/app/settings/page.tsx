@@ -15,14 +15,14 @@ export default function SettingsPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold text-white">Pengaturan Sistem &amp; Akuntansi</h2>
+        <h2 className="text-base font-bold text-white sm:text-lg">Pengaturan Sistem &amp; Akuntansi</h2>
         <p className="text-xs text-blue-200/75">
           Konfigurasi aturan kategori transaksi, metode pembayaran, dan struktur modul PT Vektora Teknologi Nusantara.
         </p>
       </div>
 
       <Card>
-        <h3 className="text-base font-bold text-white">Kategori &amp; Metode Pembayaran Transaksi</h3>
+        <h3 className="text-sm font-bold text-white">Kategori &amp; Metode Pembayaran Transaksi</h3>
         <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
           Untuk menghindari input yang berulang/tumpang-tindih, form transaksi kini langsung menggunakan{" "}
           <b className="text-white">Kategori</b> (mis. Penjualan, Operasional, Bahan Baku, Logistik) dan{" "}
@@ -32,7 +32,7 @@ export default function SettingsPage() {
       </Card>
 
       <Card>
-        <h3 className="text-base font-bold text-white">Pintasan Konfigurasi Modul</h3>
+        <h3 className="text-sm font-bold text-white">Pintasan Konfigurasi Modul</h3>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Link
             href="/brands"

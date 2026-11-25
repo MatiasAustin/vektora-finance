@@ -9,6 +9,7 @@ import { formatDateID, formatIDR } from "@/lib/format";
 import { AccessDenied, BrandSelect, Card, EmptySupabase, ReadOnlyNotice } from "@/components/ui";
 import { canEdit, canEditFeeSplit, canViewOperations, ROLE_LABELS, useAuth } from "@/lib/auth";
 import { useBrandsChannels } from "@/lib/useData";
+import { getBrandLogo } from "@/lib/brandLogo";
 
 type RecipientDraft = {
   name: string;
@@ -873,24 +874,42 @@ export default function FeeSplitPage() {
         >
           <div className="max-w-xl flex-1" onClick={(e) => e.stopPropagation()}>
             <Card className="payslip-print">
-              <div className="flex items-start justify-between border-b border-white/10 pb-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">
-                    PT Vektora Teknologi Nusantara
-                  </p>
-                  <h3 className="text-lg font-black text-white">SLIP PENCAIRAN DIVIDEN</h3>
-                  <p className="text-xs text-slate-300">
-                    Tahun Buku {selectedPayout.year} · {payoutLabel} · {selectedPayout.brands?.name ?? ""}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setSelectedPayout(null)}
-                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white print:hidden"
-                >
-                  ✕ Tutup
-                </button>
-              </div>
-              <div className="mt-4 space-y-2 text-sm">
+              {(() => {
+                const divBrand = brands.find((b) => b.id === selectedPayout.brand_id) ?? null;
+                const logoSrc = getBrandLogo(divBrand);
+                return (
+                  <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-3">
+                      {logoSrc ? (
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/20 bg-white p-1.5 shadow-sm">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={logoSrc} alt={divBrand?.name ?? "Logo Brand"} className="max-h-full max-w-full object-contain" />
+                        </div>
+                      ) : (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-blue-400/30 bg-blue-500/20 text-xs font-black text-white">
+                          {(divBrand?.name ?? "VF").slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-300">
+                          {divBrand?.name ? `${divBrand.name} · ` : ""}PT Vektora Teknologi Nusantara
+                        </p>
+                        <h3 className="text-base font-black text-white sm:text-lg">SLIP PENCAIRAN DIVIDEN</h3>
+                        <p className="text-[11px] text-slate-300">
+                          Tahun Buku {selectedPayout.year} · {payoutLabel} · {selectedPayout.brands?.name ?? ""}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedPayout(null)}
+                      className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white print:hidden"
+                    >
+                      ✕ Tutup
+                    </button>
+                  </div>
+                );
+              })()}
+              <div className="mt-4 space-y-2 text-xs">
                 <p className="flex justify-between">
                   <span className="text-slate-300">Penerima</span>
                   <b className="text-white">{payoutLabel}</b>
@@ -903,9 +922,9 @@ export default function FeeSplitPage() {
                   <span className="text-slate-300">Porsi Dividen</span>
                   <b className="text-white">{selectedPayout.pct_of_dividend}%</b>
                 </p>
-                <p className="flex justify-between rounded-xl border border-blue-400/30 bg-blue-500/15 p-3 text-base">
+                <p className="flex items-center justify-between rounded-xl border border-blue-400/30 bg-blue-500/15 p-3 text-xs">
                   <span className="font-bold text-blue-100">Total Dividen Diterima</span>
-                  <b className="text-white">{formatIDR(selectedPayout.amount)}</b>
+                  <b className="text-sm font-black text-white sm:text-base">{formatIDR(selectedPayout.amount)}</b>
                 </p>
                 <p className="text-xs text-slate-400">
                   Status:{" "}
@@ -985,25 +1004,43 @@ export default function FeeSplitPage() {
         >
           <div className="max-w-xl flex-1" onClick={(e) => e.stopPropagation()}>
             <Card className="payslip-print">
-              <div className="flex items-start justify-between border-b border-white/10 pb-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">
-                    PT Vektora Teknologi Nusantara
-                  </p>
-                  <h3 className="text-lg font-black text-white">
-                    SLIP {feeSlip.kind === "fee" ? "MANAGEMENT FEE" : "DIVIDEN"}
-                  </h3>
-                  <p className="text-xs text-slate-300">
-                    {feeSlipData.label} · Brand {feeSlipData.split.brands?.name ?? ""}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setFeeSlip(null)}
-                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white print:hidden"
-                >
-                  ✕ Tutup
-                </button>
-              </div>
+              {(() => {
+                const feeBrand = brands.find((b) => b.id === feeSlipData.split.brand_id) ?? null;
+                const logoSrc = getBrandLogo(feeBrand);
+                return (
+                  <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-3">
+                      {logoSrc ? (
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/20 bg-white p-1.5 shadow-sm">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={logoSrc} alt={feeBrand?.name ?? "Logo Brand"} className="max-h-full max-w-full object-contain" />
+                        </div>
+                      ) : (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-blue-400/30 bg-blue-500/20 text-xs font-black text-white">
+                          {(feeBrand?.name ?? "VF").slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-300">
+                          {feeBrand?.name ? `${feeBrand.name} · ` : ""}PT Vektora Teknologi Nusantara
+                        </p>
+                        <h3 className="text-base font-black text-white sm:text-lg">
+                          SLIP {feeSlip.kind === "fee" ? "MANAGEMENT FEE" : "DIVIDEN"}
+                        </h3>
+                        <p className="text-[11px] text-slate-300">
+                          {feeSlipData.label} · Brand {feeSlipData.split.brands?.name ?? ""}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setFeeSlip(null)}
+                      className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white print:hidden"
+                    >
+                      ✕ Tutup
+                    </button>
+                  </div>
+                );
+              })()}
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs print:hidden">
                 <label className="text-blue-200">
                   Pilih Periode Bulan:

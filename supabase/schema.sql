@@ -27,9 +27,11 @@ create table if not exists public.brands (
   slug text not null unique,
   segment text,
   description text,
+  logo_url text,
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
+alter table public.brands add column if not exists logo_url text;
 
 -- Channel penjualan / sumber pemasukan. brand_id null = channel global
 -- (mis. Direct TF) yang bisa dipakai semua brand; channel per brand juga

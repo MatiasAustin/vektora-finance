@@ -14,8 +14,9 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { href: "/", label: "Dashboard", shortLabel: "Home", icon: "home", roles: ["admin", "management", "komisaris", "investor", "karyawan"] },
-  { href: "/brands", label: "Brand & Kartu", shortLabel: "Card", icon: "card", roles: ["admin", "management", "komisaris", "investor"] },
+  { href: "/brands", label: "Brand & Logo", shortLabel: "Card", icon: "card", roles: ["admin", "management", "komisaris", "investor"] },
   { href: "/transactions", label: "Transaksi", shortLabel: "Transfer", icon: "transfer", roles: ["admin", "management", "komisaris", "investor"] },
+  { href: "/invoices", label: "Auto Invoice", shortLabel: "Invoice", icon: "payslips", roles: ["admin", "management", "komisaris", "investor"] },
   { href: "/assets", label: "Aset & Investasi", shortLabel: "Aset", icon: "assets", roles: ["admin", "management", "komisaris", "investor"] },
   { href: "/liabilities", label: "Hutang & Cicilan", shortLabel: "Hutang", icon: "debt", roles: ["admin", "management", "komisaris", "investor"] },
   { href: "/fee-split", label: "Pembagian Fee", shortLabel: "Fee Split", icon: "fees", roles: ["admin", "management", "komisaris", "investor"] },

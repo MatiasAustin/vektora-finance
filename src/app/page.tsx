@@ -278,15 +278,14 @@ export default function DashboardPage() {
       ),
     },
     {
-      href: editable ? "/employees" : "/liabilities",
-      label: editable ? "Tim & OPEX" : "Pinjaman",
-      sub: editable ? "Karyawan" : "Jadwal",
+      href: "/invoices",
+      label: "Auto Invoice",
+      sub: "Logo Brand",
       icon: (
         <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="4" y="4" width="6" height="6" rx="1.5" />
-          <rect x="14" y="4" width="6" height="6" rx="1.5" />
-          <rect x="4" y="14" width="6" height="6" rx="1.5" />
-          <rect x="14" y="14" width="6" height="6" rx="1.5" />
+          <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1Z" />
+          <path d="M8 10h8" />
+          <path d="M8 14h6" />
         </svg>
       ),
     },

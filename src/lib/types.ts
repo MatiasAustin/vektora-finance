@@ -7,6 +7,7 @@ export interface Brand {
   slug: string;
   segment: string | null;
   description: string | null;
+  logo_url?: string | null;
   is_active: boolean;
 }
 

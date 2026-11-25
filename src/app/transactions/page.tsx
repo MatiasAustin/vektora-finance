@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { summarize } from "@/lib/types";
@@ -9,6 +10,7 @@ import { formatDateID, formatIDR } from "@/lib/format";
 import { AccessDenied, BrandSelect, Card, EmptySupabase, ReadOnlyNotice, StatCard } from "@/components/ui";
 import { canEdit, canManageTeam, canViewOperations, useAuth } from "@/lib/auth";
 import { useBrandsChannels } from "@/lib/useData";
+import { buildAutoInvoiceNumber } from "@/app/invoices/page";
 
 type FormMode = "income" | "expense" | "debt";
 
@@ -738,15 +740,27 @@ function TransactionsContent() {
               </label>
             )}
 
-            <label className="block text-xs text-blue-200/80">
-              No. Referensi / Invoice (opsional)
+            <div className="block text-xs text-blue-200/80">
+              <div className="flex items-center justify-between">
+                <span>No. Referensi / Invoice (opsional)</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const bName = brands.find((b) => b.id === form.brand_id)?.name;
+                    setForm((f) => ({ ...f, ref: buildAutoInvoiceNumber(bName, f.txn_date) }));
+                  }}
+                  className="text-[11px] font-semibold text-blue-300 hover:text-white hover:underline"
+                >
+                  ↻ Auto No. Invoice
+                </button>
+              </div>
               <input
                 value={form.ref}
                 onChange={(e) => setForm({ ...form, ref: e.target.value })}
-                placeholder="INV-2026-..."
-                className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                placeholder="INV/..."
+                className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-mono"
               />
-            </label>
+            </div>
 
             <label className="block text-xs text-blue-200/80 sm:col-span-2">
               Catatan Tambahan (opsional)
@@ -1105,6 +1119,14 @@ function TransactionsContent() {
                       {isPending ? "✓ Tandai Reimburse" : "Ubah ke Belum Reimburse"}
                     </button>
                   )}
+
+                  <Link
+                    href={`/invoices?txn_id=${t.id}`}
+                    className="rounded-xl border border-blue-400/30 bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-200 hover:bg-blue-500/30"
+                    title="Auto-Generate Invoice dengan Logo Brand dari transaksi ini"
+                  >
+                    🧾 Invoice
+                  </Link>
 
                   {editable && (
                     <button

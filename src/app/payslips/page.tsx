@@ -9,6 +9,7 @@ import type { Brand, EmployeeRow, PayrollPeriod, Payslip, PayslipLine } from "@/
 import { formatDateID, formatIDR } from "@/lib/format";
 import { AccessDenied, BrandSelect, Card, EmptySupabase, ReadOnlyNotice, StatCard } from "@/components/ui";
 import { useBrandsChannels } from "@/lib/useData";
+import { getBrandLogo } from "@/lib/brandLogo";
 
 export default function PayslipsPage() {
   const { role, profile, loading: authLoading } = useAuth();
@@ -378,27 +379,46 @@ export default function PayslipsPage() {
         <div className="lg:col-span-7">
           {selected ? (
             <Card className="payslip-print">
-              <div className="flex flex-wrap items-start justify-between gap-2 border-b border-white/10 pb-3.5">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-300">
-                    PT Vektora Teknologi Nusantara
-                  </p>
-                  <h3 className="mt-0.5 text-base font-black text-white sm:text-lg">SLIP GAJI KARYAWAN</h3>
-                  <p className="text-[11px] text-slate-300">
-                    Periode: <b>{selected.payroll_periods?.period}</b> · Penerima: <b>{slipName(selected)}</b> (
-                    {selected.employees?.role ?? "—"})
-                  </p>
-                </div>
-                <span
-                  className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold leading-none ${
-                    selected.status === "sudah_dibayar"
-                      ? "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/30"
-                      : "bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/30"
-                  }`}
-                >
-                  {selected.status === "sudah_dibayar" ? "LUNAS / SUDAH DIBAYAR" : "BELUM DIBAYAR"}
-                </span>
-              </div>
+              {(() => {
+                const slipBrandId = selected.payroll_periods?.brand_id || selected.employees?.brand_id;
+                const slipBrand = brands.find((b) => b.id === slipBrandId) ?? null;
+                const logoSrc = getBrandLogo(slipBrand);
+                return (
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-3.5">
+                    <div className="flex items-center gap-3">
+                      {logoSrc ? (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/20 bg-white p-1.5 shadow-sm">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={logoSrc} alt={slipBrand?.name ?? "Logo Brand"} className="max-h-full max-w-full object-contain" />
+                        </div>
+                      ) : (
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-400/30 bg-blue-500/20 text-sm font-black text-white">
+                          {(slipBrand?.name ?? "VF").slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-300">
+                          {slipBrand?.name ? `${slipBrand.name} · ` : ""}PT Vektora Teknologi Nusantara
+                        </p>
+                        <h3 className="mt-0.5 text-base font-black text-white sm:text-lg">SLIP GAJI KARYAWAN</h3>
+                        <p className="text-[11px] text-slate-300">
+                          Periode: <b>{selected.payroll_periods?.period}</b> · Penerima: <b>{slipName(selected)}</b> (
+                          {selected.employees?.role ?? "—"})
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-bold leading-none ${
+                        selected.status === "sudah_dibayar"
+                          ? "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/30"
+                          : "bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/30"
+                      }`}
+                    >
+                      {selected.status === "sudah_dibayar" ? "LUNAS / SUDAH DIBAYAR" : "BELUM DIBAYAR"}
+                    </span>
+                  </div>
+                );
+              })()}
 
               <div className="mt-3.5 space-y-2 text-xs">
                 <div className="flex justify-between">

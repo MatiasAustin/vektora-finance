@@ -236,13 +236,13 @@ export default function TeamPage() {
                 className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm"
               >
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     <p className="font-bold text-white">{p.full_name ?? p.email}</p>
-                    <span className="rounded-full bg-blue-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-blue-200 ring-1 ring-blue-400/30">
+                    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-blue-500/20 px-3 py-1 text-[11px] font-semibold leading-none text-blue-200 ring-1 ring-blue-400/30">
                       {ROLE_LABELS[p.role]}
                     </span>
                     {!p.active && (
-                      <span className="rounded-full bg-rose-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-rose-200">
+                      <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-rose-500/20 px-3 py-1 text-[11px] font-semibold leading-none text-rose-200 ring-1 ring-rose-400/30">
                         Nonaktif
                       </span>
                     )}

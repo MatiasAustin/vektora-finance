@@ -319,11 +319,11 @@ export default function DashboardPage() {
       {/* TOTAL BALANCE HERO — Persis gaya Finora di atas latar gradasi biru */}
       <section className="flex flex-col justify-between gap-4 pt-1 sm:flex-row sm:items-end">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             <p className="text-sm font-medium text-blue-100/85">
               Total Balance {activeBrandObj ? `· ${activeBrandObj.name}` : "(Semua Brand)"}
             </p>
-            <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-blue-100">
+            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/15 bg-white/15 px-3 py-1 text-[11px] font-semibold leading-none text-blue-100">
               Terhitung
             </span>
           </div>
@@ -363,7 +363,7 @@ export default function DashboardPage() {
           {editable ? (
             <Link
               href="/brands"
-              className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-blue-100 transition hover:bg-white/20 hover:text-white"
+              className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold leading-none text-blue-100 transition hover:bg-white/20 hover:text-white"
             >
               Add +
             </Link>
@@ -388,36 +388,38 @@ export default function DashboardPage() {
                 onClick={() => setBrandId(isSelected ? "all" : b.id)}
                 className={`${
                   idx % 2 === 0 ? "finora-glossy-card" : "finora-glossy-card-alt"
-                } group relative flex min-w-[240px] max-w-[280px] flex-1 shrink-0 flex-col justify-between rounded-3xl p-5 text-left text-white transition duration-200 hover:-translate-y-0.5 ${
+                } group relative flex min-w-[260px] max-w-[300px] flex-1 shrink-0 flex-col justify-between rounded-3xl p-5 text-left text-white transition duration-200 hover:-translate-y-0.5 ${
                   isSelected ? "ring-2 ring-white" : ""
                 }`}
               >
                 {/* Dekorasi lengkungan cahaya seperti kartu referensi Finora */}
                 <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-white/15 blur-2xl" />
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-3">
                   {idx % 2 === 0 ? (
-                    <span className="text-base font-black italic tracking-wider text-white/95">
+                    <span className="truncate text-base font-black italic tracking-wider text-white/95">
                       {b.name.toUpperCase()}
                     </span>
                   ) : (
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-5 w-5 rounded-full bg-white/80" />
-                      <span className="-ml-3 h-5 w-5 rounded-full bg-blue-200/60" />
-                      <span className="ml-1 text-sm font-bold text-white/95">{b.name}</span>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className="h-5 w-5 shrink-0 rounded-full bg-white/80" />
+                      <span className="-ml-3 h-5 w-5 shrink-0 rounded-full bg-blue-200/60" />
+                      <span className="ml-1 truncate text-sm font-bold text-white/95">{b.name}</span>
                     </div>
                   )}
-                  <span className="rounded-full bg-black/25 px-2.5 py-0.5 text-[10px] font-semibold text-blue-100">
-                    {isSelected ? "Aktif ✓" : b.segment ?? "Brand"}
+                  <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/15 bg-black/25 px-3 py-1 text-[11px] font-semibold leading-none text-blue-100">
+                    {isSelected ? "Filter Aktif ✓" : b.is_active ? "Brand Aktif" : "Nonaktif"}
                   </span>
                 </div>
 
                 <div className="my-5">
-                  <p className="text-xs font-medium text-blue-100/80">Total Balance · {b.name}</p>
+                  <p className="truncate text-xs font-medium text-blue-100/80">
+                    Total Balance · {b.name}
+                  </p>
                   <p className="mt-1 truncate text-2xl font-black tracking-tight text-white">
                     {formatIDR(bSum.net)}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-blue-100/75">
-                    In: {formatIDR(bSum.income)} · Out: {formatIDR(bSum.expense)}
+                  <p className="mt-1 truncate text-[11px] text-blue-100/75">
+                    {b.segment ? b.segment : `In: ${formatIDR(bSum.income)} · Out: ${formatIDR(bSum.expense)}`}
                   </p>
                 </div>
 
@@ -434,19 +436,21 @@ export default function DashboardPage() {
           {/* Kartu Aset & Hutang Perusahaan */}
           <Link
             href="/assets"
-            className="finora-glossy-card-alt relative flex min-w-[240px] max-w-[280px] flex-1 shrink-0 flex-col justify-between rounded-3xl p-5 text-left text-white transition duration-200 hover:-translate-y-0.5"
+            className="finora-glossy-card-alt relative flex min-w-[260px] max-w-[300px] flex-1 shrink-0 flex-col justify-between rounded-3xl p-5 text-left text-white transition duration-200 hover:-translate-y-0.5"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-1">
-                <span className="h-5 w-5 rounded-full bg-white/80" />
-                <span className="-ml-2.5 h-5 w-5 rounded-full bg-blue-300/60" />
+                <span className="h-5 w-5 shrink-0 rounded-full bg-white/80" />
+                <span className="-ml-2.5 h-5 w-5 shrink-0 rounded-full bg-blue-300/60" />
               </div>
-              <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold">Portfolio</span>
+              <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/15 bg-white/15 px-3 py-1 text-[11px] font-semibold leading-none text-white">
+                Portfolio
+              </span>
             </div>
             <div className="my-5">
               <p className="text-xs font-medium text-blue-100/80">Nilai Investasi &amp; Aset</p>
               <p className="mt-1 truncate text-2xl font-black tracking-tight text-white">{formatIDR(totalAssets)}</p>
-              <p className="mt-0.5 text-[11px] text-blue-100/75">
+              <p className="mt-1 truncate text-[11px] text-blue-100/75">
                 Sisa Hutang PT: {formatIDR(companyDebt)}
               </p>
             </div>
@@ -615,16 +619,16 @@ export default function DashboardPage() {
           <Card className="p-5">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <h3 className="text-base font-bold text-white">Pembagian Fee</h3>
                   {activeSplit && (
-                    <span className="rounded-full bg-blue-500/20 px-2.5 py-0.5 text-xs font-semibold text-blue-200 ring-1 ring-blue-400/30">
-                      Brand: {brands.find((b) => b.id === activeSplit.brand_id)?.name ?? "—"} (
-                      {activeSplit.dividend_pct}/{activeSplit.management_fee_pct}/{activeSplit.retained_pct})
+                    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-blue-500/20 px-3.5 py-1 text-xs font-semibold leading-none text-blue-200 ring-1 ring-blue-400/30">
+                      {brands.find((b) => b.id === activeSplit.brand_id)?.name ?? "—"} ·{" "}
+                      {activeSplit.dividend_pct}/{activeSplit.management_fee_pct}/{activeSplit.retained_pct}
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-slate-400">
                   Laba bersih brand ini: <b className="text-white">{formatIDR(activeSplitNet)}</b> (dihitung per brand)
                 </p>
               </div>

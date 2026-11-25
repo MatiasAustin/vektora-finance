@@ -352,10 +352,10 @@ export default function PayslipsPage() {
                     <div className="shrink-0 text-right">
                       <p className="text-sm font-black text-white">{formatIDR(s.net_pay)}</p>
                       <span
-                        className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        className={`mt-1 inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold leading-none ${
                           isPaid
-                            ? "bg-emerald-500/20 text-emerald-200"
-                            : "bg-amber-500/20 text-amber-200"
+                            ? "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/30"
+                            : "bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/30"
                         }`}
                       >
                         {isPaid ? "Sudah dibayar" : "Belum dibayar"}
@@ -390,7 +390,7 @@ export default function PayslipsPage() {
                   </p>
                 </div>
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-bold ${
+                  className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold leading-none ${
                     selected.status === "sudah_dibayar"
                       ? "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/30"
                       : "bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/30"

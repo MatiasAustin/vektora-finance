@@ -80,15 +80,15 @@ export default function BrandsPage() {
               } relative flex flex-col justify-between rounded-3xl p-6 text-white`}
             >
               <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/15 blur-2xl" />
-              <div className="flex items-start justify-between gap-2">
-                <div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
                   <span className="text-xs font-semibold uppercase tracking-widest text-blue-100/80">
                     PT Vektora Brand Card
                   </span>
-                  <h3 className="mt-1 text-2xl font-black tracking-tight text-white">{b.name}</h3>
+                  <h3 className="mt-1 truncate text-2xl font-black tracking-tight text-white">{b.name}</h3>
                 </div>
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-bold ${
+                  className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/15 px-3.5 py-1.5 text-xs font-bold leading-none ${
                     b.is_active ? "bg-white/20 text-white" : "bg-black/40 text-slate-300"
                   }`}
                 >

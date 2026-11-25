@@ -48,12 +48,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-[#0b1942]" />
               </button>
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <h1 className="truncate text-lg font-bold tracking-tight text-white sm:text-xl">
                     Hello {firstName}!
                   </h1>
                   {role && (
-                    <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-0.5 text-[11px] font-semibold text-blue-100 backdrop-blur-md">
+                    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold leading-none text-blue-100 backdrop-blur-md">
                       {ROLE_LABELS[role]}
                     </span>
                   )}

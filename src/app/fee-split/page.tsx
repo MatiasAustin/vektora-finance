@@ -494,7 +494,7 @@ export default function FeeSplitPage() {
                   Laba Bersih {s.brands?.name}: <b className="text-white">{formatIDR(bs.net)}</b>
                 </p>
               </div>
-              <span className="rounded-full bg-blue-500/20 px-3 py-1 text-xs font-semibold text-blue-200 ring-1 ring-blue-400/30">
+              <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-blue-500/20 px-3.5 py-1.5 text-xs font-semibold leading-none text-blue-200 ring-1 ring-blue-400/30">
                 Dividen / Mgmt Fee / Ditahan
               </span>
             </div>

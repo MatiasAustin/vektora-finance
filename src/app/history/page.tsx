@@ -177,9 +177,9 @@ export default function HistoryPage() {
                 key={a.id}
                 className="rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm"
               >
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <span
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold leading-none ${
                       a.action === "delete"
                         ? "bg-rose-500/20 text-rose-200 ring-1 ring-rose-400/30"
                         : "bg-blue-500/20 text-blue-200 ring-1 ring-blue-400/30"

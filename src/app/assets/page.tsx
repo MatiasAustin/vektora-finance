@@ -118,7 +118,7 @@ export default function AssetsPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-base font-bold text-white">Tambah Aset Baru</h3>
           {editable && previewTotal > 0 && (
-            <span className="rounded-full bg-blue-500/20 px-3 py-1 text-xs font-bold text-blue-200 ring-1 ring-blue-400/30">
+            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-blue-500/20 px-3.5 py-1.5 text-xs font-bold leading-none text-blue-200 ring-1 ring-blue-400/30">
               Pratinjau Total: {formatIDR(previewTotal)}
             </span>
           )}

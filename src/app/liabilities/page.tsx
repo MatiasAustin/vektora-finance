@@ -269,7 +269,7 @@ export default function LiabilitiesPage() {
                         {l.creditor} — {l.brands?.name ?? "PT Vektora"}
                       </p>
                       <span
-                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                        className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1 text-[11px] font-semibold leading-none ${
                           isLunas
                             ? "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-400/30"
                             : l.paid_by === "investor"

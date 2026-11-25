@@ -1077,7 +1077,7 @@ function TransactionsContent() {
                   </span>
 
                   <span
-                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                    className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1 text-[11px] font-semibold leading-none ${
                       isPending
                         ? "bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/30"
                         : isDebt

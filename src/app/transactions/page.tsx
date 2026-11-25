@@ -10,7 +10,7 @@ import { formatDateID, formatIDR } from "@/lib/format";
 import { AccessDenied, BrandSelect, Card, EmptySupabase, ReadOnlyNotice, StatCard } from "@/components/ui";
 import { canEdit, canManageTeam, canViewOperations, useAuth } from "@/lib/auth";
 import { useBrandsChannels } from "@/lib/useData";
-import { buildAutoInvoiceNumber } from "@/app/invoices/page";
+import { buildAutoInvoiceNumber } from "@/lib/brandLogo";
 
 type FormMode = "income" | "expense" | "debt";
 

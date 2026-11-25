@@ -9,24 +9,12 @@ import { formatDateID, formatIDR } from "@/lib/format";
 import { AccessDenied, Card, EmptySupabase } from "@/components/ui";
 import { canEdit, canViewOperations, useAuth } from "@/lib/auth";
 import { useBrandsChannels } from "@/lib/useData";
-import { getBrandLogo } from "@/lib/brandLogo";
+import { buildAutoInvoiceNumber, getBrandLogo } from "@/lib/brandLogo";
 
-export interface InvoiceLineItem {
+interface InvoiceLineItem {
   description: string;
   qty: number;
   unitPrice: number;
-}
-
-/** Buat nomor invoice otomatis berdasarkan kode brand, tanggal, dan urutan unik. */
-export function buildAutoInvoiceNumber(brandName?: string | null, dateStr?: string, suffix?: string): string {
-  const prefix = (brandName || "VEKTORA")
-    .replace(/[^a-zA-Z0-9]/g, "")
-    .slice(0, 3)
-    .toUpperCase()
-    .padEnd(3, "X");
-  const cleanDate = (dateStr || new Date().toISOString().slice(0, 10)).replace(/-/g, "");
-  const tail = suffix || String(Math.floor(1000 + Math.random() * 9000));
-  return `INV/${prefix}/${cleanDate}/${tail}`;
 }
 
 function InvoicesContent() {

@@ -163,7 +163,7 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 export default function Sidebar() {
   const { role } = useAuth();
   return (
-    <aside className="hidden w-60 shrink-0 border-r border-white/10 bg-[#050a18]/90 p-4 text-white backdrop-blur-xl md:flex md:flex-col">
+    <aside className="hidden w-60 shrink-0 border-r border-white/10 bg-[#050a18]/90 p-4 text-white backdrop-blur-xl md:sticky md:top-0 md:flex md:h-screen md:flex-col md:overflow-y-auto">
       <div className="flex items-center gap-2.5 px-1">
         <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-blue-400 to-blue-700 text-xs font-black text-white shadow-lg shadow-blue-600/30 ring-1 ring-white/25">
           V
@@ -176,11 +176,11 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <nav className="mt-6 flex-1 space-y-1">
+      <nav className="mt-5 flex-1 space-y-1">
         <NavLinks />
       </nav>
 
-      <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-3 text-[11px] leading-relaxed text-blue-100/80">
+      <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-[11px] leading-relaxed text-blue-100/80">
         <p className="font-semibold text-white">Aturan Akuntansi</p>
         <p className="mt-1">
           Pengeluaran <b className="text-amber-300">Belum reimburse</b> &amp; <b className="text-blue-200">Cicilan hutang</b> tercatat rapi tapi tidak mengurangi laba operasional.
